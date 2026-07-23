@@ -30,7 +30,7 @@
     <a href="home.html" class="drawer-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-9 9 9M5 10v10h14V10"/></svg>Home</a>
     <a href="fixtures.html" class="drawer-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>Fixtures</a>
     <a href="profile.html" class="drawer-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Profile</a>
-    <a href="notices.html" class="drawer-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0112 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M9.5 20a2.5 2.5 0 005 0"/></svg>Notices</a>
+    <a href="notices.html" class="drawer-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0112 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M9.5 20a2.5 2.5 0 005 0"/></svg>Notices<span class="drawer-badge" id="notices-badge" style="display:none;"></span></a>
       <div class="drawer-divider"></div>
       <button class="drawer-item signout" id="logout-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>Sign out</button>
     </div>
@@ -86,6 +86,7 @@
   } else {
     loading.style.display = 'none';
     app.style.display = 'block';
+    loadNoticeBadge(data.session.access_token);
     loadBalance(data.session.access_token);
     loadFixture(data.session.access_token);
   }
@@ -181,6 +182,25 @@
   document.getElementById('drawer-overlay').addEventListener('click', (e) => {
     if (e.target.id === 'drawer-overlay') document.getElementById('drawer-overlay').classList.remove('open');
   });
+
+  async function loadNoticeBadge(accessToken) {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-notice-count`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const body = await res.json();
+      if (!res.ok) return;
+      const badge = document.getElementById('notices-badge');
+      if (body.unread > 0) {
+        badge.textContent = body.unread > 99 ? '99+' : String(body.unread);
+        badge.style.display = 'inline-flex';
+      } else {
+        badge.style.display = 'none';
+      }
+    } catch (err) {
+      // Non-critical - badge just doesn't show this load.
+    }
+  }
   document.getElementById('logout-btn').addEventListener('click', async () => {
     await supabase.auth.signOut();
     window.location.href = 'index.html';
