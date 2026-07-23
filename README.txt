@@ -1,33 +1,52 @@
-Garlandale FC Player Portal — Iteration 1 (preview shell)
-===========================================================
+Garlandale FC Player Portal — Iteration 2 (real login, real pages)
+====================================================================
 
-WHAT THIS IS
-A working preview of the login + home screens, with the real club crest
-and matching colors/fonts. All data on the home screen (name, balance,
-fixture) is hardcoded/fake - nothing here talks to Supabase yet.
+WHAT CHANGED FROM ITERATION 1
+- Two real, separate pages now (index.html = sign in, home.html =
+  dashboard), with actual navigation between them - not a single page
+  hiding/showing divs. The back button, refresh, and bookmarking all
+  behave like a real site.
+- The club badge is now embedded directly inside each HTML file, so it
+  can never go missing due to an upload/folder-structure issue.
+- Sign-in is REAL: it calls Supabase Auth, not a fake "any input works"
+  form. Wrong credentials show a real error.
+- Refreshing home.html actually checks whether you're really signed in
+  (via Supabase) and bounces you back to the sign-in page if not.
+- Sign out is REAL: it ends the actual Supabase session.
 
-HOW TO OPEN IT RIGHT NOW
-Just double-click index.html. It'll open in your default browser and
-work exactly as you've already seen - type anything into the login form
-and hit "Sign in" to see the home screen.
+WHAT'S STILL FAKE
+The balance card and next-fixture card on home.html are still hardcoded
+placeholder numbers - the plumbing to fetch your real balance and real
+fixtures comes in the next iteration.
 
-WHAT WON'T WORK YET (AND WHY)
-- "Add to Home Screen" / true install prompt: browsers only offer this
-  for pages served over http/https, not opened as a local file. This is
-  a browser security rule, not something we can flip a setting for.
-- Offline caching (the service-worker.js file): same reason - service
-  workers refuse to run under file://. The code is already there and
-  will work automatically the moment this sits on a real web host.
+BEFORE THIS WILL WORK: FILL IN config.js
+Open config.js and fill in the two blank values:
 
-WHEN YOU'RE READY FOR A REAL HOSTED VERSION
-Any static hosting works (many have free tiers) - the whole folder
-(index.html, manifest.json, service-worker.js, icons/) just needs to be
-uploaded as-is, no build step required since this is plain HTML/CSS/JS.
-That's a separate, later step - no need to think about it now.
+  SUPABASE_URL      = your Project URL
+  SUPABASE_ANON_KEY = your anon/public key
+
+Both are on: Supabase Dashboard -> Settings -> API. Both are safe to
+have in this client-side file - the anon key is meant to be public and
+is protected by Row Level Security on the database side, not secrecy.
+
+DEPLOYING
+Same as before: all these files (including icons/, still needed for the
+install icon) go into your GitHub repo, Vercel picks it up automatically,
+no build step. If you're replacing iteration 1's files in the same repo,
+just upload these on top - GitHub will let you overwrite.
+
+ONE THING TO CHECK ON YOUR SUPABASE PROJECT
+For a real player to actually sign in, their account needs to already
+exist via the invite-player flow from the admin app (per the original
+handoff doc) - this page can't create new accounts, only sign in to
+ones that already exist and have had their password set.
 
 FILES IN THIS FOLDER
-  index.html          the app itself
-  manifest.json        PWA metadata (name, colors, icons)
-  service-worker.js     offline caching (inactive until hosted)
-  icons/icon-192.png    app icon (from the club crest)
-  icons/icon-512.png    app icon, larger size
+  index.html          sign-in page (real Supabase Auth)
+  home.html            dashboard page (real session check + sign out)
+  config.js             <- fill this in with your Supabase URL + anon key
+  styles.css            shared styling
+  manifest.json          PWA metadata
+  service-worker.js       offline caching (active once hosted)
+  icons/icon-192.png       app icon
+  icons/icon-512.png       app icon, larger

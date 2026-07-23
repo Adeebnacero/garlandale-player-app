@@ -1,0 +1,144 @@
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Karla:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap');
+
+:root {
+  --indigo: #241a45;
+  --indigoSoft: #342763;
+  --green: #1e7a41;
+  --greenSoft: #e6f3ea;
+  --gold: #e8ac2e;
+  --goldDeep: #c98a12;
+  --paper: #f6f2e9;
+  --paperDim: #efe9da;
+  --ink: #1c1730;
+  --inkSoft: #5b5470;
+  --danger: #c1443c;
+  --dangerSoft: #fbe9e7;
+  --amber: #d68f1e;
+  --amberSoft: #fbf1de;
+  --line: #e2dbc9;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: 'Karla', sans-serif; background: var(--paper); }
+
+/* ---- Login page ---- */
+.login-page {
+  background: var(--indigo);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+}
+.login-box { width: 100%; max-width: 360px; text-align: center; }
+.login-box img { width: 96px; height: 96px; display: block; margin: 0 auto 20px; }
+.login-box h1 {
+  font-family: 'Anton', sans-serif;
+  color: var(--paper);
+  font-size: 32px;
+  letter-spacing: 0.03em;
+  margin: 0 0 4px;
+  text-transform: uppercase;
+  text-align: center;
+}
+.login-box .subtitle {
+  color: var(--gold);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin: 0 0 32px;
+  font-weight: 600;
+  text-align: center;
+}
+.login-box form { text-align: left; }
+.login-box label { display: block; color: var(--paper); font-size: 12px; margin-bottom: 6px; opacity: 0.8; }
+.login-box input {
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--indigoSoft);
+  background: var(--indigoSoft);
+  color: var(--paper);
+  font-size: 15px;
+  margin-bottom: 16px;
+  font-family: 'Karla', sans-serif;
+}
+.login-box input::placeholder { color: rgba(246,242,233,0.4); }
+.login-box button {
+  width: 100%;
+  padding: 13px 0;
+  border-radius: 8px;
+  border: none;
+  background: var(--gold);
+  color: var(--indigo);
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  font-family: 'Karla', sans-serif;
+  margin-top: 8px;
+}
+.login-box button:disabled { opacity: 0.6; cursor: not-allowed; }
+.login-note { color: var(--inkSoft); font-size: 12px; margin-top: 20px; opacity: 0.6; }
+.login-error {
+  background: var(--dangerSoft);
+  color: var(--danger);
+  font-size: 13px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  display: none;
+}
+.login-error.visible { display: block; }
+.config-warning {
+  background: var(--amberSoft);
+  color: var(--amber);
+  font-size: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+/* ---- Home page ---- */
+.home-page header {
+  background: var(--indigo);
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.header-brand { display: flex; align-items: center; gap: 10px; }
+.header-brand img { width: 32px; height: 32px; display: block; }
+.header-brand span {
+  font-family: 'Anton', sans-serif;
+  color: var(--paper);
+  font-size: 17px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.home-page header button {
+  background: none;
+  border: none;
+  color: var(--gold);
+  font-size: 13px;
+  cursor: pointer;
+  font-family: 'Karla', sans-serif;
+}
+main { padding: 24px 20px; max-width: 480px; margin: 0 auto; }
+main .greeting { color: var(--inkSoft); font-size: 14px; margin: 0 0 2px; }
+main h1 { font-family: 'Anton', sans-serif; color: var(--ink); font-size: 26px; margin: 0 0 24px; text-transform: uppercase; }
+.card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 16px; }
+.card-label { color: var(--inkSoft); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 10px; font-weight: 700; }
+.balance-amount { font-family: 'JetBrains Mono', monospace; font-size: 32px; font-weight: 700; color: var(--ink); margin: 0 0 12px; }
+.pill { display: inline-block; background: var(--amberSoft); color: var(--amber); font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em; }
+.pill-reason { color: var(--inkSoft); font-size: 13px; margin: 8px 0 0; }
+.fixture-teams { font-size: 17px; font-weight: 700; color: var(--ink); margin: 0 0 4px; }
+.fixture-when { font-size: 14px; color: var(--inkSoft); margin: 0; }
+.footnote { color: var(--inkSoft); font-size: 12px; margin-top: 24px; text-align: center; opacity: 0.6; }
+.loading-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--inkSoft);
+  font-size: 14px;
+}

@@ -3,7 +3,14 @@
 // network. No real API caching yet - that comes once the app talks to
 // real Supabase endpoints.
 const CACHE_NAME = "garlandale-player-app-v1";
-const APP_SHELL = ["./", "./index.html", "./manifest.json"];
+const APP_SHELL = [
+  "./",
+  "./index.html",
+  "./home.html",
+  "./styles.css",
+  "./config.js",
+  "./manifest.json",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
