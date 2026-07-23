@@ -1,36 +1,54 @@
-Garlandale Player App — full current state (iteration 3)
-==========================================================
+Garlandale FC Player Portal — COMPLETE current build
+======================================================
 
-This folder mirrors your repo's root exactly - every file here should
-land at the SAME path relative to your repo root, overwriting what's
-already there.
+This mirrors your entire repo. To use it safely:
 
-  index.html                                  -> repo root
-  home.html                                    -> repo root (now fetches
-                                                   your REAL balance)
-  config.js                                    -> repo root (already has
-                                                   your Supabase URL/key)
-  styles.css                                   -> repo root
-  manifest.json                                -> repo root
-  service-worker.js                            -> repo root
-  icons/icon-192.png                           -> repo root/icons/
-  icons/icon-512.png                           -> repo root/icons/
-  supabase/functions/get-my-balance/index.ts    -> repo root/supabase/...
-  supabase/functions/get-my-balance/billing.js  -> repo root/supabase/...
+1. In your local repo folder, DELETE everything currently there
+   EXCEPT the hidden .git folder (that's what tracks your GitHub
+   connection - don't touch it).
 
-HOW TO USE THIS
-1. Unzip this into your garlandale-player-app repo folder, letting it
-   overwrite/merge with what's already there.
-2. From inside the repo folder, confirm the function files landed
-   correctly before deploying:
-     ls -la supabase/functions/get-my-balance/
-   You should see exactly: index.ts and billing.js (not index.ts.txt
-   or anything renamed).
-3. Deploy the function:
+   On Mac/Linux, from inside the repo folder:
+     find . -mindepth 1 -not -path './.git*' -delete
+
+   Or just do it manually in Finder - keep .git, delete everything else.
+
+2. Unzip this file's contents directly into that now-empty repo folder.
+
+3. Confirm the structure looks right:
+     ls -la
+     ls -la supabase/functions/
+   You should see three folders inside supabase/functions/:
+   get-my-balance, get-my-profile, update-my-profile - each containing
+   an index.ts (get-my-balance also has billing.js alongside it).
+
+4. Deploy all three functions:
      supabase functions deploy get-my-balance
-4. Commit and push everything:
+     supabase functions deploy get-my-profile
+     supabase functions deploy update-my-profile
+
+5. Commit and push everything:
      git add -A
-     git commit -m "Iteration 3: real balance via get-my-balance edge function"
+     git commit -m "Full rebuild - complete current state"
      git push
 
-Vercel redeploys the frontend automatically on push - no separate step.
+Vercel redeploys the frontend automatically on push.
+
+WHY A FULL REBUILD THIS TIME
+A couple of files landed in your repo either corrupted or missing
+entirely over the last few rounds. Rather than keep patching piece by
+piece, this is the whole thing in one go, from a version I've verified
+end to end (checked every file has real content and every HTML file
+actually closes its tags) - a clean baseline to work from.
+
+FILES IN THIS BUILD
+  index.html                                     sign-in page
+  home.html                                       dashboard (balance + fixtures placeholder)
+  profile.html                                    profile view/edit page
+  config.js                                       your Supabase URL + anon key (already filled in)
+  styles.css                                      shared styling
+  manifest.json                                   PWA metadata
+  service-worker.js                               offline caching (network-first)
+  icons/icon-192.png, icons/icon-512.png           app icons
+  supabase/functions/get-my-balance/               balance calculation endpoint
+  supabase/functions/get-my-profile/               profile read endpoint
+  supabase/functions/update-my-profile/            profile edit endpoint
