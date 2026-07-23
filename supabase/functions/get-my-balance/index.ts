@@ -29,7 +29,25 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// Browser-facing functions need explicit CORS headers, or the browser
+// blocks the response before your code ever sees it (shows up client-side
+// as a generic "Failed to fetch", no other detail). "*" is fine here since
+// this endpoint is already gated by requiring a valid player JWT - the
+// origin isn't doing any of the access control.
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, content-type",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+};
+
 Deno.serve(async (req) => {
+  // Preflight: the browser sends this automatically before the real
+  // request whenever an Authorization header is involved. Must return
+  // 200 + the CORS headers with no body, or the real request never fires.
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 200, headers: CORS_HEADERS });
+  }
+
   const authHeader = req.headers.get("Authorization") ?? "";
 
   // ---- Step 1: who is calling, as themselves ----
@@ -39,14 +57,17 @@ Deno.serve(async (req) => {
 
   const { data: userData, error: userErr } = await callerClient.auth.getUser();
   if (userErr || !userData?.user) {
-    return new Response(JSON.stringify({ error: "Not authenticated" }), { status: 401 });
+    return new Response(JSON.stringify({ error: "Not authenticated" }), {
+      status: 401,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
   }
 
   const { data: playerId, error: rpcErr } = await callerClient.rpc("current_player_id");
   if (rpcErr || !playerId) {
     return new Response(
       JSON.stringify({ error: "No linked player account for this user" }),
-      { status: 403 }
+      { status: 403, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 
@@ -66,7 +87,10 @@ Deno.serve(async (req) => {
     ]);
 
   if (playerErr || !player) {
-    return new Response(JSON.stringify({ error: "Player record not found" }), { status: 404 });
+    return new Response(JSON.stringify({ error: "Player record not found" }), {
+      status: 404,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
   }
 
   // ---- Step 3: adapt snake_case DB rows into billing.js's expected shape ----
@@ -97,6 +121,6 @@ Deno.serve(async (req) => {
       status,
       reason,
     }),
-    { status: 200, headers: { "Content-Type": "application/json" } }
+    { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
   );
 });
