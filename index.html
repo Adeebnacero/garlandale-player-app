@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Garlandale FC Player Portal</title>
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#241a45" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Anton&family=Karla:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap');
+
+  :root {
+    --indigo: #241a45;
+    --indigoSoft: #342763;
+    --green: #1e7a41;
+    --greenSoft: #e6f3ea;
+    --gold: #e8ac2e;
+    --goldDeep: #c98a12;
+    --paper: #f6f2e9;
+    --paperDim: #efe9da;
+    --ink: #1c1730;
+    --inkSoft: #5b5470;
+    --danger: #c1443c;
+    --dangerSoft: #fbe9e7;
+    --amber: #d68f1e;
+    --amberSoft: #fbf1de;
+    --line: #e2dbc9;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Karla', sans-serif;
+    background: var(--paper);
+  }
+  .screen { display: none; min-height: 100vh; }
+  .screen.active { display: block; }
+
+  /* ---- Login screen ---- */
+  #login-screen {
+    background: var(--indigo);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 20px;
+  }
+  .login-box { width: 100%; max-width: 360px; text-align: center; }
+  .login-box img {
+    width: 96px;
+    height: 96px;
+    display: block;
+    margin: 0 auto 20px;
+  }
+  .login-box h1 {
+    font-family: 'Anton', sans-serif;
+    color: var(--paper);
+    font-size: 32px;
+    letter-spacing: 0.03em;
+    margin: 0 0 4px;
+    text-transform: uppercase;
+    text-align: center;
+  }
+  .login-box .subtitle {
+    color: var(--gold);
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin: 0 0 32px;
+    font-weight: 600;
+    text-align: center;
+  }
+  .login-box form { text-align: left; }
+  .login-box label {
+    display: block;
+    color: var(--paper);
+    font-size: 12px;
+    margin-bottom: 6px;
+    opacity: 0.8;
+  }
+  .login-box input {
+    width: 100%;
+    padding: 11px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--indigoSoft);
+    background: var(--indigoSoft);
+    color: var(--paper);
+    font-size: 15px;
+    margin-bottom: 16px;
+    font-family: 'Karla', sans-serif;
+  }
+  .login-box input::placeholder { color: rgba(246,242,233,0.4); }
+  .login-box button {
+    width: 100%;
+    padding: 13px 0;
+    border-radius: 8px;
+    border: none;
+    background: var(--gold);
+    color: var(--indigo);
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    font-family: 'Karla', sans-serif;
+    margin-top: 8px;
+  }
+  .login-note {
+    color: var(--inkSoft);
+    font-size: 12px;
+    margin-top: 20px;
+    opacity: 0.6;
+  }
+
+  /* ---- Home screen ---- */
+  #home-screen header {
+    background: var(--indigo);
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .header-brand { display: flex; align-items: center; gap: 10px; }
+  .header-brand img { width: 32px; height: 32px; display: block; }
+  .header-brand span {
+    font-family: 'Anton', sans-serif;
+    color: var(--paper);
+    font-size: 17px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  #home-screen header button {
+    background: none;
+    border: none;
+    color: var(--gold);
+    font-size: 13px;
+    cursor: pointer;
+    font-family: 'Karla', sans-serif;
+  }
+  main {
+    padding: 24px 20px;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+  main .greeting {
+    color: var(--inkSoft);
+    font-size: 14px;
+    margin: 0 0 2px;
+  }
+  main h1 {
+    font-family: 'Anton', sans-serif;
+    color: var(--ink);
+    font-size: 26px;
+    margin: 0 0 24px;
+    text-transform: uppercase;
+  }
+  .card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .card-label {
+    color: var(--inkSoft);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 0 0 10px;
+    font-weight: 700;
+  }
+  .balance-amount {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 0 0 12px;
+  }
+  .pill {
+    display: inline-block;
+    background: var(--amberSoft);
+    color: var(--amber);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .pill-reason { color: var(--inkSoft); font-size: 13px; margin: 8px 0 0; }
+  .fixture-title { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .fixture-teams { font-size: 17px; font-weight: 700; color: var(--ink); margin: 0 0 4px; }
+  .fixture-when { font-size: 14px; color: var(--inkSoft); margin: 0; }
+  .footnote {
+    color: var(--inkSoft);
+    font-size: 12px;
+    margin-top: 24px;
+    text-align: center;
+    opacity: 0.6;
+  }
+</style>
+</head>
+<body>
+
+<div id="login-screen" class="screen active">
+  <div class="login-box">
+    <img src="icons/icon-192.png" alt="Garlandale FC crest" />
+    <h1>Garlandale FC</h1>
+    <p class="subtitle">Player Portal</p>
+    <form id="login-form">
+      <label for="email">Email</label>
+      <input type="email" id="email" placeholder="you@example.com" />
+      <label for="password">Password</label>
+      <input type="password" id="password" placeholder="••••••••" />
+      <button type="submit">Sign in</button>
+    </form>
+    <p class="login-note">Preview only — this screen doesn't connect to any account yet.</p>
+  </div>
+</div>
+
+<div id="home-screen" class="screen">
+  <header>
+    <div class="header-brand">
+      <img src="icons/icon-192.png" alt="" />
+      <span>Garlandale FC</span>
+    </div>
+    <button id="logout-btn">Sign out</button>
+  </header>
+  <main>
+    <p class="greeting">Welcome back,</p>
+    <h1>Liam Adams</h1>
+
+    <div class="card">
+      <p class="card-label">Subscription balance</p>
+      <p class="balance-amount">R350.00</p>
+      <span class="pill">Payment due</span>
+      <p class="pill-reason">Owes R350.00 — within one month's fee.</p>
+    </div>
+
+    <div class="card">
+      <div class="fixture-title">
+        <span class="card-label" style="margin:0;">Next fixture</span>
+      </div>
+      <p class="fixture-teams">Garlandale FC vs Rondebosch United</p>
+      <p class="fixture-when">Sat, 26 July · 09:00 kickoff</p>
+    </div>
+
+    <p class="footnote">Preview only — balance and fixture shown here are placeholder data.</p>
+  </main>
+</div>
+
+<script>
+  const loginScreen = document.getElementById('login-screen');
+  const homeScreen = document.getElementById('home-screen');
+
+  document.getElementById('login-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    loginScreen.classList.remove('active');
+    homeScreen.classList.add('active');
+  });
+
+  document.getElementById('logout-btn').addEventListener('click', () => {
+    homeScreen.classList.remove('active');
+    loginScreen.classList.add('active');
+  });
+
+  // Only register the service worker if this page is actually being served
+  // (http/https), not opened directly as a local file - service workers
+  // don't run under file:// and will throw if we try.
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+  }
+</script>
+
+</body>
+</html>
