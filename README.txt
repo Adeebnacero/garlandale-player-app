@@ -1,50 +1,47 @@
-Garlandale FC Player Portal — COMPLETE current build
-======================================================
+Garlandale FC Player Portal — COMPLETE current build (fixtures added)
+=========================================================================
 
-This mirrors your entire repo. To use it safely:
+SAME FULL-REBUILD APPROACH AS LAST TIME - safest given how many
+partial pushes have caused issues before.
 
-1. In your local repo folder, DELETE everything currently there
-   EXCEPT the hidden .git folder (that's what tracks your GitHub
-   connection - don't touch it).
-
-   On Mac/Linux, from inside the repo folder:
+1. In your local repo folder, delete everything EXCEPT the hidden
+   .git folder:
      find . -mindepth 1 -not -path './.git*' -delete
 
-   Or just do it manually in Finder - keep .git, delete everything else.
+2. Unzip this file's contents directly into that now-empty folder.
 
-2. Unzip this file's contents directly into that now-empty repo folder.
-
-3. Confirm the structure looks right:
+3. Confirm the structure:
      ls -la
      ls -la supabase/functions/
-   You should see three folders inside supabase/functions/:
-   get-my-balance, get-my-profile, update-my-profile - each containing
-   an index.ts (get-my-balance also has billing.js alongside it).
+   You should see FOUR folders inside supabase/functions/ now:
+   get-my-balance, get-my-profile, update-my-profile, get-my-fixtures
+   (get-my-balance also has billing.js alongside its index.ts).
 
-4. Deploy all three functions:
+4. Deploy all four functions:
      supabase functions deploy get-my-balance
      supabase functions deploy get-my-profile
      supabase functions deploy update-my-profile
+     supabase functions deploy get-my-fixtures
 
-5. Commit and push everything:
+5. Commit and push:
      git add -A
-     git commit -m "Full rebuild - complete current state"
+     git commit -m "Add fixtures screen"
      git push
 
-Vercel redeploys the frontend automatically on push.
-
-WHY A FULL REBUILD THIS TIME
-A couple of files landed in your repo either corrupted or missing
-entirely over the last few rounds. Rather than keep patching piece by
-piece, this is the whole thing in one go, from a version I've verified
-end to end (checked every file has real content and every HTML file
-actually closes its tags) - a clean baseline to work from.
+WHAT'S NEW THIS ROUND
+- fixtures.html - a new page listing every upcoming fixture
+- home.html - the "Next fixture" card now shows a real fixture instead
+  of a placeholder, and there's a new "Fixtures" link in the nav
+- profile.html - added the same "Fixtures" nav link for consistency
+- supabase/functions/get-my-fixtures/ - the new endpoint powering both
+  of the above
 
 FILES IN THIS BUILD
   index.html                                     sign-in page
-  home.html                                       dashboard (balance + fixtures placeholder)
+  home.html                                       dashboard (real balance + real next fixture)
   profile.html                                    profile view/edit page
-  config.js                                       your Supabase URL + anon key (already filled in)
+  fixtures.html                                   full upcoming fixtures list
+  config.js                                       your Supabase URL + anon key
   styles.css                                      shared styling
   manifest.json                                   PWA metadata
   service-worker.js                               offline caching (network-first)
@@ -52,3 +49,4 @@ FILES IN THIS BUILD
   supabase/functions/get-my-balance/               balance calculation endpoint
   supabase/functions/get-my-profile/               profile read endpoint
   supabase/functions/update-my-profile/            profile edit endpoint
+  supabase/functions/get-my-fixtures/              fixtures endpoint
