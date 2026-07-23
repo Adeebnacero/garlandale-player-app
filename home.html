@@ -27,9 +27,13 @@
 
     <div class="card">
       <p class="card-label">Subscription balance</p>
-      <p class="balance-amount">R350.00</p>
-      <span class="pill">Payment due</span>
-      <p class="pill-reason">Owes R350.00 — within one month's fee.</p>
+      <div id="balance-loading" style="color: var(--inkSoft); font-size: 14px;">Loading your balance…</div>
+      <div id="balance-error" class="login-error" style="display:none;"></div>
+      <div id="balance-content" style="display:none;">
+        <p class="balance-amount" id="balance-amount">—</p>
+        <span class="pill" id="balance-pill">—</span>
+        <p class="pill-reason" id="balance-reason"></p>
+      </div>
     </div>
 
     <div class="card">
@@ -39,8 +43,8 @@
     </div>
 
     <p class="footnote">
-      You're really signed in — but balance and fixture above are still
-      placeholder data, not pulled from the database yet.
+      Balance above is your real data. Fixture card is still placeholder —
+      that's the next iteration.
     </p>
   </main>
 </div>
@@ -66,6 +70,50 @@
     document.getElementById('player-email').textContent = data.session.user.email;
     loading.style.display = 'none';
     app.style.display = 'block';
+    loadBalance(data.session.access_token);
+  }
+
+  async function loadBalance(accessToken) {
+    const balanceLoading = document.getElementById('balance-loading');
+    const balanceError = document.getElementById('balance-error');
+    const balanceContent = document.getElementById('balance-content');
+
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-balance`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const body = await res.json();
+
+      if (!res.ok) {
+        throw new Error(body.error || 'Could not load balance');
+      }
+
+      const money = (n) =>
+        'R' + Math.abs(n).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+      const pillStyles = {
+        green: { bg: 'var(--greenSoft)', fg: 'var(--green)', label: 'Compliant' },
+        amber: { bg: 'var(--amberSoft)', fg: 'var(--amber)', label: 'Payment due' },
+        red: { bg: 'var(--dangerSoft)', fg: 'var(--danger)', label: 'Non-compliant' },
+        inactive: { bg: 'var(--paperDim)', fg: 'var(--inkSoft)', label: 'Inactive' },
+      };
+      const style = pillStyles[body.status] || pillStyles.amber;
+
+      document.getElementById('balance-amount').textContent = money(body.balance);
+      const pill = document.getElementById('balance-pill');
+      pill.textContent = style.label;
+      pill.style.background = style.bg;
+      pill.style.color = style.fg;
+      document.getElementById('balance-reason').textContent = body.reason;
+
+      balanceLoading.style.display = 'none';
+      balanceContent.style.display = 'block';
+    } catch (err) {
+      balanceLoading.style.display = 'none';
+      balanceError.textContent = err.message;
+      balanceError.classList.add('visible');
+      balanceError.style.display = 'block';
+    }
   }
 
   document.getElementById('logout-btn').addEventListener('click', async () => {
