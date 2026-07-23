@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
     await Promise.all([
       adminClient
         .from("players")
-        .select("id, join_date, billing_start_date, tier_id, active, documents_complete")
+        .select("id, name, join_date, billing_start_date, tier_id, active, documents_complete")
         .eq("id", playerId)
         .single(),
       adminClient.from("player_status_log").select("status, changed_at").eq("player_id", playerId),
@@ -115,6 +115,7 @@ Deno.serve(async (req) => {
 
   return new Response(
     JSON.stringify({
+      name: player.name,
       due: finance.due,
       paid: finance.paid,
       balance: finance.balance,
