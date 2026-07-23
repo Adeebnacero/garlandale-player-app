@@ -1,52 +1,43 @@
-Garlandale FC Player Portal — COMPLETE current build (fixtures added)
-=========================================================================
+Garlandale FC Player Portal — COMPLETE build (slide-out drawer nav, Option B)
+================================================================================
 
-SAME FULL-REBUILD APPROACH AS LAST TIME - safest given how many
-partial pushes have caused issues before.
+SAME FULL-REBUILD APPROACH - safest given past partial-push issues.
 
-1. In your local repo folder, delete everything EXCEPT the hidden
-   .git folder:
+1. Delete everything in your local repo folder EXCEPT .git:
      find . -mindepth 1 -not -path './.git*' -delete
 
-2. Unzip this file's contents directly into that now-empty folder.
+2. Unzip this file's contents into that now-empty folder.
 
-3. Confirm the structure:
-     ls -la
+3. Confirm structure:
      ls -la supabase/functions/
-   You should see FOUR folders inside supabase/functions/ now:
-   get-my-balance, get-my-profile, update-my-profile, get-my-fixtures
-   (get-my-balance also has billing.js alongside its index.ts).
+   Five folders: get-my-balance, get-my-profile, update-my-profile,
+   get-my-fixtures, get-my-notices.
 
-4. Deploy all four functions:
-     supabase functions deploy get-my-balance
-     supabase functions deploy get-my-profile
-     supabase functions deploy update-my-profile
-     supabase functions deploy get-my-fixtures
+4. No new Edge Functions this round - only frontend changed. No
+   `supabase functions deploy` needed.
 
 5. Commit and push:
      git add -A
-     git commit -m "Add fixtures screen"
+     git commit -m "Switch to slide-out drawer navigation (Option B)"
      git push
 
 WHAT'S NEW THIS ROUND
-- fixtures.html - a new page listing every upcoming fixture
-- home.html - the "Next fixture" card now shows a real fixture instead
-  of a placeholder, and there's a new "Fixtures" link in the nav
-- profile.html - added the same "Fixtures" nav link for consistency
-- supabase/functions/get-my-fixtures/ - the new endpoint powering both
-  of the above
+- All four pages (home, profile, fixtures, notices) now use a hamburger
+  menu (top-left) that opens a slide-out drawer, replacing the old
+  top-ribbon text links.
+- Each page highlights itself as the active item in the drawer.
+- Tap anywhere outside the drawer (the dimmed background) to close it.
+- Sign out is now inside the drawer, at the bottom.
+
+This is purely a navigation/UI change - no database or Edge Function
+changes, so nothing else in the app's behavior should be different.
 
 FILES IN THIS BUILD
-  index.html                                     sign-in page
-  home.html                                       dashboard (real balance + real next fixture)
-  profile.html                                    profile view/edit page
-  fixtures.html                                   full upcoming fixtures list
-  config.js                                       your Supabase URL + anon key
-  styles.css                                      shared styling
-  manifest.json                                   PWA metadata
-  service-worker.js                               offline caching (network-first)
-  icons/icon-192.png, icons/icon-512.png           app icons
-  supabase/functions/get-my-balance/               balance calculation endpoint
-  supabase/functions/get-my-profile/               profile read endpoint
-  supabase/functions/update-my-profile/            profile edit endpoint
-  supabase/functions/get-my-fixtures/              fixtures endpoint
+  index.html, home.html, profile.html, fixtures.html, notices.html, accept-invite.html
+  config.js, styles.css, manifest.json, service-worker.js
+  icons/icon-192.png, icons/icon-512.png
+  supabase/functions/get-my-balance/       (+ billing.js)
+  supabase/functions/get-my-profile/       (+ billing.js)
+  supabase/functions/update-my-profile/
+  supabase/functions/get-my-fixtures/      (+ billing.js)
+  supabase/functions/get-my-notices/
