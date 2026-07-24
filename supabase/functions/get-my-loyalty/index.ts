@@ -1,19 +1,18 @@
-// supabase/functions/get-my-profile/index.ts
+// supabase/functions/get-my-loyalty/index.ts
 //
-// Player-facing endpoint: returns the calling player's profile fields.
-// Same auth pattern as get-my-balance - validate the caller's own JWT via
-// current_player_id(), then read with the service-role key, explicitly
-// scoped to that one id.
+// Player-facing endpoint: returns the calling player's loyalty card data
+// (name, reg number) plus the active list of loyalty partners. Only
+// returns real card data if the player is currently active - matches the
+// "loyalty tab only for active players" rule as a server-side backstop,
+// in case a player reaches loyalty.html directly (nav visibility alone
+// is a UI nicety, not a security boundary).
 //
-// Returns BOTH read-only fields (name, reg_no, squad_number - for display
-// only, never editable here) and the whitelisted editable fields (phone,
-// email, guardian_name, guardian_phone) that update-my-profile allows
-// changing. Deliberately does NOT return billing/compliance fields
-// (tier_id, monthly_fee, documents_complete, notes) - those aren't this
-// endpoint's concern and a player has no reason to see staff-only notes.
+// Note for future work: this is deliberately where a per-player QR code
+// would be generated and returned, once that's built - the response
+// shape here (an object keyed by concern) makes that a pure addition
+// later, not a restructure.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { computeAgeGroup, isOver40 } from "./billing.js";
 import { checkRateLimit } from "./rate-limit.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -54,7 +53,7 @@ Deno.serve(async (req) => {
 
   const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-  const rl = await checkRateLimit(adminClient, userData.user.id, "get-my-profile");
+  const rl = await checkRateLimit(adminClient, userData.user.id, "get-my-loyalty");
   if (!rl.allowed) {
     return new Response(JSON.stringify({ error: "Too many requests - please slow down." }), {
       status: 429,
@@ -64,7 +63,7 @@ Deno.serve(async (req) => {
 
   const { data: player, error: playerErr } = await adminClient
     .from("players")
-    .select("name, dob, age_group_override, reg_no, squad_number, phone, email, guardian_name, guardian_phone")
+    .select("name, reg_no, active")
     .eq("id", playerId)
     .single();
 
@@ -75,24 +74,33 @@ Deno.serve(async (req) => {
     });
   }
 
-  const ageGroup = player.age_group_override || computeAgeGroup(player.dob);
-  const over40 = isOver40(player.dob);
+  if (!player.active) {
+    return new Response(JSON.stringify({ active: false }), {
+      status: 200,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
+  }
+
+  const { data: partners, error: partnersErr } = await adminClient
+    .from("partners")
+    .select("id, name, logo_url")
+    .eq("active", true)
+    .order("display_order", { ascending: true });
+
+  if (partnersErr) {
+    return new Response(JSON.stringify({ error: partnersErr.message }), {
+      status: 400,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
+  }
 
   return new Response(
     JSON.stringify({
+      active: true,
       name: player.name,
       reg_no: player.reg_no,
-      squad_number: player.squad_number,
-      phone: player.phone,
-      email: player.email,
-      guardian_name: player.guardian_name,
-      guardian_phone: player.guardian_phone,
-      age_group: ageGroup,
-      over_40: over40,
+      partners: partners ?? [],
     }),
-    {
-      status: 200,
-      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-    }
+    { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
   );
 });

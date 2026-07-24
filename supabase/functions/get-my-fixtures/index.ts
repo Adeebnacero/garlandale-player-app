@@ -1,17 +1,25 @@
 // supabase/functions/get-my-fixtures/index.ts
 //
-// Player-facing endpoint: returns upcoming club fixtures. Per the decision
-// already made (small club, not worth gating by age_group/division for
-// v1), every linked player sees every upcoming fixture - so this function
-// doesn't scope by player_id anywhere, it only confirms the caller IS a
-// linked player before returning anything.
+// Player-facing endpoint: returns upcoming club fixtures FILTERED to the
+// calling player's own age group (default assumption, confirm if wrong:
+// "Over 40" is treated as a flag on top of the normal age group, not a
+// separate division - so an Over-40 player still matches on their normal
+// computed age group, e.g. "Seniors", not a distinct "Over 40" bucket).
 //
-// "Upcoming" filtering (match_date >= today) happens here in the API
-// layer, not in the RLS policy - the policy (matches_select_for_players)
+// Matching is normalized (trimmed + case-insensitive) rather than an exact
+// database equality check, since matches.age_group is free text entered
+// in the admin app and its exact conventions weren't confirmed - this
+// trades a little query efficiency for resilience against minor
+// formatting differences ("U9" vs "u9 " vs "U9 ").
+//
+// "Upcoming" filtering (match_date >= today) still happens here in the
+// API layer, not in the RLS policy - the policy (matches_select_for_players)
 // intentionally allows seeing all fixtures, past and future; trimming to
 // just what's relevant for display is this endpoint's job.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { computeAgeGroup } from "./billing.js";
+import { checkRateLimit } from "./rate-limit.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -53,6 +61,33 @@ Deno.serve(async (req) => {
   }
 
   const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+  const rl = await checkRateLimit(adminClient, userData.user.id, "get-my-fixtures");
+  if (!rl.allowed) {
+    return new Response(JSON.stringify({ error: "Too many requests - please slow down." }), {
+      status: 429,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
+  }
+
+  // Need the player's own age group to filter fixtures - reuses the same
+  // tested computeAgeGroup() logic as get-my-profile, so the two stay
+  // consistent with each other by construction, not by coincidence.
+  const { data: player, error: playerErr } = await adminClient
+    .from("players")
+    .select("dob, age_group_override")
+    .eq("id", playerId)
+    .single();
+
+  if (playerErr || !player) {
+    return new Response(JSON.stringify({ error: "Player record not found" }), {
+      status: 404,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
+  }
+
+  const myAgeGroup = (player.age_group_override || computeAgeGroup(player.dob)).trim().toLowerCase();
+
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
   const { data: matches, error: matchesErr } = await adminClient
@@ -63,7 +98,7 @@ Deno.serve(async (req) => {
     .gte("match_date", today)
     .order("match_date", { ascending: true })
     .order("kickoff_time", { ascending: true })
-    .limit(10);
+    .limit(50); // fetch generously; age-group filtering below trims to what's actually relevant
 
   if (matchesErr) {
     return new Response(JSON.stringify({ error: matchesErr.message }), {
@@ -72,7 +107,11 @@ Deno.serve(async (req) => {
     });
   }
 
-  return new Response(JSON.stringify({ fixtures: matches ?? [] }), {
+  const filtered = (matches ?? [])
+    .filter((m) => (m.age_group ?? "").trim().toLowerCase() === myAgeGroup)
+    .slice(0, 10);
+
+  return new Response(JSON.stringify({ fixtures: filtered }), {
     status: 200,
     headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
   });

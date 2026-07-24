@@ -25,6 +25,7 @@
 // loudly, not masking.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { checkRateLimit } from "./rate-limit.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -71,6 +72,22 @@ Deno.serve(async (req) => {
     });
   }
 
+  const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+  // Stricter limit than read endpoints - this is a write, and a
+  // legitimate player has no reason to save their profile more than a
+  // handful of times a minute.
+  const rl = await checkRateLimit(adminClient, userData.user.id, "update-my-profile", {
+    maxRequests: 10,
+    windowSeconds: 60,
+  });
+  if (!rl.allowed) {
+    return new Response(JSON.stringify({ error: "Too many requests - please slow down." }), {
+      status: 429,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
+  }
+
   let body: Record<string, unknown>;
   try {
     body = await req.json();
@@ -111,7 +128,6 @@ Deno.serve(async (req) => {
     }
   }
 
-  const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   const { data: updated, error: updateErr } = await adminClient
     .from("players")
     .update(update)
