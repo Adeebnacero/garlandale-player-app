@@ -32,6 +32,7 @@
     <a href="profile.html" class="drawer-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Profile</a>
     <a href="notices.html" class="drawer-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0112 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M9.5 20a2.5 2.5 0 005 0"/></svg>Notices<span class="drawer-badge" id="notices-badge" style="display:none;"></span></a>
       <a href="loyalty.html" class="drawer-item" id="loyalty-nav-item" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-4-6.3 4 1.7-7-5.4-4.7 7.1-.6z"/></svg>Loyalty</a>
+      <button class="drawer-item" id="refresh-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-3-6.7M21 4v5h-5"/></svg>Refresh now</button>
       <div class="drawer-divider"></div>
       <button class="drawer-item signout" id="logout-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>Sign out</button>
     </div>
@@ -77,6 +78,7 @@
 <script type="module">
   import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
   import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+  import { cachedFetch, clearUserCache } from './cache.js';
 
   const loading = document.getElementById('loading');
   const app = document.getElementById('app');
@@ -94,27 +96,28 @@
   } else {
     loading.style.display = 'none';
     app.style.display = 'block';
-    loadNoticeBadge(data.session.access_token);
-    loadActiveStatus(data.session.access_token);
-    loadBalance(data.session.access_token);
-    loadFixture(data.session.access_token);
-    loadTraining(data.session.access_token);
+    const uid = data.session.user.id;
+    loadNoticeBadge(data.session.access_token, uid);
+    loadActiveStatus(data.session.access_token, uid);
+    loadBalance(data.session.access_token, uid);
+    loadFixture(data.session.access_token, uid);
+    loadTraining(data.session.access_token, uid);
   }
 
-  async function loadBalance(accessToken) {
+  async function loadBalance(accessToken, userId) {
     const balanceLoading = document.getElementById('balance-loading');
     const balanceError = document.getElementById('balance-error');
     const balanceContent = document.getElementById('balance-content');
 
     try {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-balance`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const body = await cachedFetch(userId, 'get-my-balance', async () => {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-balance`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Could not load balance');
+        return json;
       });
-      const body = await res.json();
-
-      if (!res.ok) {
-        throw new Error(body.error || 'Could not load balance');
-      }
 
       const money = (n) =>
         'R' + Math.abs(n).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -150,13 +153,17 @@
   // "training schedule" is just a single, ordinary pinned notice with
   // category 'training'. Staff edit it via the same Table Editor stopgap
   // as any other notice; nothing new needed on the backend for this.
-  async function loadTraining(accessToken) {
+  async function loadTraining(accessToken, userId) {
     try {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-notices`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const body = await cachedFetch(userId, 'get-my-notices', async () => {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-notices`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Could not load notices');
+        return json;
       });
-      const body = await res.json();
-      if (!res.ok || !body.notices) return;
+      if (!body.notices) return;
 
       const trainingNotice = body.notices.find((n) => n.category === 'training' && n.pinned);
       if (!trainingNotice) return; // no training notice posted yet - card stays hidden
@@ -169,17 +176,20 @@
     }
   }
 
-  async function loadFixture(accessToken) {
+  async function loadFixture(accessToken, userId) {
     const fixtureLoading = document.getElementById('fixture-loading');
     const fixtureNone = document.getElementById('fixture-none');
     const fixtureContent = document.getElementById('fixture-content');
 
     try {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-fixtures`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const body = await cachedFetch(userId, 'get-my-fixtures', async () => {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-fixtures`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Could not load fixtures');
+        return json;
       });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || 'Could not load fixtures');
 
       fixtureLoading.style.display = 'none';
 
@@ -222,13 +232,16 @@
     }
   });
 
-  async function loadNoticeBadge(accessToken) {
+  async function loadNoticeBadge(accessToken, userId) {
     try {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-notice-count`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const body = await cachedFetch(userId, 'get-my-notice-count', async () => {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-notice-count`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Could not load notice count');
+        return json;
       });
-      const body = await res.json();
-      if (!res.ok) return;
       const badge = document.getElementById('notices-badge');
       if (body.unread > 0) {
         badge.textContent = body.unread > 99 ? '99+' : String(body.unread);
@@ -241,13 +254,16 @@
     }
   }
 
-  async function loadActiveStatus(accessToken) {
+  async function loadActiveStatus(accessToken, userId) {
     try {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-active-status`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const body = await cachedFetch(userId, 'get-my-active-status', async () => {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-active-status`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Could not load active status');
+        return json;
       });
-      const body = await res.json();
-      if (!res.ok) return;
       if (body.active) {
         document.getElementById('loyalty-nav-item').style.display = 'flex';
       }
@@ -255,7 +271,13 @@
       // Non-critical - Loyalty tab just stays hidden this load.
     }
   }
+  document.getElementById('refresh-btn').addEventListener('click', () => {
+    clearUserCache(data.session.user.id);
+    window.location.reload();
+  });
+
   document.getElementById('logout-btn').addEventListener('click', async () => {
+    clearUserCache(data.session.user.id);
     await supabase.auth.signOut();
     window.location.href = 'index.html';
   });
