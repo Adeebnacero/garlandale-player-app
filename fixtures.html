@@ -103,9 +103,10 @@
       fixturesList.innerHTML = body.fixtures
         .map((f) => `
           <div class="card">
-            <p class="fixture-teams">Garlandale FC ${f.home_away === 'H' ? 'vs' : '@'} ${f.opponent || 'TBC'}</p>
-            <p class="fixture-when">${dateFmt(f.match_date)}${f.kickoff_time ? ' · ' + timeFmt(f.kickoff_time) + ' kickoff' : ''}</p>
-            ${f.venue ? `<p class="fixture-when" style="margin-top:4px;">${f.venue}</p>` : ''}
+            <p class="fixture-teams">Garlandale FC vs ${f.opponent || 'TBC'}</p>
+            <p class="fixture-when" style="margin-top:4px;">Venue: ${f.venue || 'TBC'}${f.home_away ? ` (${f.home_away === 'H' ? 'Home' : 'Away'})` : ''}</p>
+            <p class="fixture-when" style="margin-top:4px;">Time: ${dateFmt(f.match_date)}${f.kickoff_time ? ' · ' + timeFmt(f.kickoff_time) : ''}</p>
+            <p class="fixture-when" style="margin-top:8px; font-style: italic;">Please report 1 hour before kick-off</p>
           </div>
         `)
         .join('');

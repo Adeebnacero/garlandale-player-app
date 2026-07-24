@@ -56,7 +56,9 @@
       <div id="fixture-none" style="display:none; color: var(--inkSoft); font-size: 14px;">No upcoming fixtures for your age group yet.</div>
       <div id="fixture-content" style="display:none;">
         <p class="fixture-teams" id="fixture-teams"></p>
-        <p class="fixture-when" id="fixture-when"></p>
+        <p class="fixture-when" id="fixture-venue" style="margin-top:4px;"></p>
+        <p class="fixture-when" id="fixture-when" style="margin-top:4px;"></p>
+        <p class="fixture-when" style="margin-top:8px; font-style: italic;">Please report 1 hour before kick-off</p>
       </div>
     </div>
 
@@ -163,9 +165,11 @@
       const timeFmt = (t) => (t ? t.slice(0, 5) : '');
 
       document.getElementById('fixture-teams').textContent =
-        `Garlandale FC ${f.home_away === 'H' ? 'vs' : '@'} ${f.opponent || 'TBC'}`;
+        `Garlandale FC vs ${f.opponent || 'TBC'}`;
+      document.getElementById('fixture-venue').textContent =
+        `Venue: ${f.venue || 'TBC'}${f.home_away ? ` (${f.home_away === 'H' ? 'Home' : 'Away'})` : ''}`;
       document.getElementById('fixture-when').textContent =
-        `${dateFmt(f.match_date)}${f.kickoff_time ? ' · ' + timeFmt(f.kickoff_time) + ' kickoff' : ''}`;
+        `Time: ${dateFmt(f.match_date)}${f.kickoff_time ? ' · ' + timeFmt(f.kickoff_time) : ''}`;
 
       fixtureContent.style.display = 'block';
     } catch (err) {
