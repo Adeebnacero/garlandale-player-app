@@ -253,6 +253,13 @@
 
   document.getElementById('logout-btn').addEventListener('click', async () => {
     clearUserCache(data.session.user.id);
+    // Defense-in-depth: also wipe the service worker's Cache Storage, in
+    // case any same-origin page asset was cached mid-session. Harmless -
+    // static files just get re-fetched fresh next load.
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
     await supabase.auth.signOut();
     window.location.href = 'index.html';
   });

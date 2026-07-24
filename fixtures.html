@@ -111,8 +111,8 @@
       fixturesList.innerHTML = body.fixtures
         .map((f) => `
           <div class="card">
-            <p class="fixture-teams">Garlandale FC vs ${f.opponent || 'TBC'}</p>
-            <p class="fixture-when" style="margin-top:4px;">Venue: ${f.venue || 'TBC'}${f.home_away ? ` (${f.home_away === 'H' ? 'Home' : 'Away'})` : ''}</p>
+            <p class="fixture-teams">Garlandale FC vs ${escapeHtml(f.opponent || 'TBC')}</p>
+            <p class="fixture-when" style="margin-top:4px;">Venue: ${escapeHtml(f.venue || 'TBC')}${f.home_away ? ` (${f.home_away === 'H' ? 'Home' : 'Away'})` : ''}</p>
             <p class="fixture-when" style="margin-top:4px;">Time: ${dateFmt(f.match_date)}${f.kickoff_time ? ' · ' + timeFmt(f.kickoff_time) : ''}</p>
             <p class="fixture-when" style="margin-top:8px; font-style: italic;">Please report 1 hour before kick-off</p>
           </div>
@@ -137,6 +137,12 @@
       document.getElementById('header-brand').style.display = '';
     }
   });
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
 
   async function loadNoticeBadge(accessToken, userId) {
     try {
@@ -184,6 +190,13 @@
 
   document.getElementById('logout-btn').addEventListener('click', async () => {
     clearUserCache(data.session.user.id);
+    // Defense-in-depth: also wipe the service worker's Cache Storage, in
+    // case any same-origin page asset was cached mid-session. Harmless -
+    // static files just get re-fetched fresh next load.
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
     await supabase.auth.signOut();
     window.location.href = 'index.html';
   });

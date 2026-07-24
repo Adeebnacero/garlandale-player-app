@@ -1,61 +1,79 @@
-Garlandale FC Player Portal — COMPLETE build (scheduled caching)
-====================================================================
+Garlandale FC Player Portal — COMPLETE build (security retro fixes)
+========================================================================
 
-SAME FULL-REBUILD APPROACH.
+SAME FULL-REBUILD APPROACH - but this is a BIGGER deploy than usual:
+ALL NINE Edge Functions changed this round, not just one or two. Do
+this methodically.
 
 1. find . -mindepth 1 -not -path './.git*' -delete
 2. Unzip this into the empty folder.
-3. No new/changed Edge Functions this round - purely frontend caching,
-   no `supabase functions deploy` needed.
-4. git add -A && git commit -m "Add scheduled caching (10am/5pm refresh windows)" && git push
 
-WHAT'S NEW THIS ROUND
-- New file: cache.js - a small shared helper used by all five pages.
-- Every read (balance, fixtures, notices, notice count, active status,
-  profile, loyalty) now only re-fetches from the network if a 10am or
-  5pm boundary has passed since it was last fetched. Otherwise it reads
-  from the browser's local storage instantly, no network call at all.
-- First-ever visit for any given piece of data always fetches
-  immediately - there's nothing to show otherwise.
-- New "Refresh now" option in the drawer on every page - clears this
-  player's cache and reloads, for whenever someone wants the latest
-  data right away rather than waiting for the next window.
-- Signing out also clears the cache, so nothing lingers if a device is
-  shared between players.
-- Cache is namespaced per logged-in player's own account - one player's
-  cached data can never show up for a different player on a shared
-  device.
+3. Run the new migration in Supabase SQL Editor:
+   rate_limits_migration.sql (separate download, not part of this zip)
 
-TWO IMPORTANT FIXES BAKED IN (not just "add caching" - these prevent
-real staleness bugs the caching would otherwise introduce):
-- Saving your profile (phone/email/guardian info) immediately busts
-  just that one cached entry, so you never see your OLD info again
-  after editing - it doesn't wait for the next refresh window.
-- Marking a notice as read immediately busts both the notices list and
-  unread-count cache entries, so the badge and the "read" dot update
-  right away, not on the next scheduled refresh.
+4. Deploy ALL NINE functions - every single one changed this round:
+     supabase functions deploy get-my-balance
+     supabase functions deploy get-my-profile
+     supabase functions deploy update-my-profile
+     supabase functions deploy get-my-fixtures
+     supabase functions deploy get-my-notices
+     supabase functions deploy mark-notice-read
+     supabase functions deploy get-my-notice-count
+     supabase functions deploy get-my-active-status
+     supabase functions deploy get-my-loyalty
 
-ONE THING WORTH KNOWING
-This is NOT the same as true background refresh - the app can't wake
-itself up at 10am/5pm while closed (that would need push notifications/
-background sync, a much bigger thing to build). What actually happens:
-the NEXT time a page is opened after 10am (or 5pm), if it hasn't
-already refreshed since that time today, it refreshes then. For a
-player who opens the app in the morning and again after training,
-this behaves the same as true scheduled refresh in practice.
+5. Commit and push:
+     git add -A
+     git commit -m "Security retro: fix service worker cache scope, add rate limiting, fix XSS in fixtures"
+     git push
+
+WHAT CHANGED THIS ROUND (a full security review, three real issues found and fixed)
+
+1. SERVICE WORKER WAS CACHING API RESPONSES (the serious one)
+   Previously, service-worker.js cached EVERY successful response it saw,
+   including calls to Supabase (balance, profile with guardian contact
+   info, everything) - not just this app's own static files. That cache
+   isn't per-user, so on a shared device, one player's cached data could
+   theoretically be served back to a different player later. Fixed:
+   the service worker now ONLY caches same-origin static files. Every
+   Supabase call passes straight through with zero caching, always.
+   Cache version bumped, which wipes out anything already cached under
+   the old, broader behavior on anyone's existing installed app.
+   Sign-out on every page now also clears Cache Storage entirely, as an
+   extra layer.
+
+2. NO RATE LIMITING EXISTED (the big one)
+   The original architecture doc called for this from day one but it
+   was never actually built. Now: a new api_rate_limits table (locked
+   down with RLS + zero policies, so ONLY the service role can ever
+   touch it) tracks requests per user per endpoint. Every one of the
+   nine Edge Functions now rejects with a 429 if a player hits it too
+   often:
+     - Most read endpoints: 30 requests / 60 seconds
+     - update-my-profile (a write): 10 requests / 60 seconds
+     - mark-notice-read (fires once per notice scrolled): 60 / 60 seconds
+   Fails OPEN if the rate-limit check itself has an infrastructure
+   problem - a DB hiccup on the rate-limit table should never block a
+   legitimate player from using the app.
+
+3. UNESCAPED TEXT IN fixtures.html (the quick one)
+   Opponent and venue names were injected into the page via innerHTML
+   without escaping - notices.html already did this correctly, fixtures
+   hadn't. Low real-world risk today (only staff can currently write
+   match data), but now consistent with the rest of the app.
 
 FILES IN THIS BUILD
   index.html, home.html, profile.html, fixtures.html, notices.html,
   loyalty.html, accept-invite.html
-  cache.js                                      (new)
-  config.js, styles.css, manifest.json, service-worker.js
+  cache.js, config.js, styles.css, manifest.json
+  service-worker.js                              (fixed - origin-restricted caching)
   icons/icon-192.png, icons/icon-512.png
-  supabase/functions/get-my-balance/           (+ billing.js)
-  supabase/functions/get-my-profile/           (+ billing.js)
-  supabase/functions/update-my-profile/
-  supabase/functions/get-my-fixtures/          (+ billing.js)
-  supabase/functions/get-my-notices/
-  supabase/functions/mark-notice-read/
-  supabase/functions/get-my-notice-count/
-  supabase/functions/get-my-active-status/
-  supabase/functions/get-my-loyalty/
+  supabase/functions/get-my-balance/              (+ billing.js, rate-limit.js)
+  supabase/functions/get-my-profile/              (+ billing.js, rate-limit.js)
+  supabase/functions/update-my-profile/           (+ rate-limit.js)
+  supabase/functions/get-my-fixtures/             (+ billing.js, rate-limit.js)
+  supabase/functions/get-my-notices/              (+ rate-limit.js)
+  supabase/functions/mark-notice-read/            (+ rate-limit.js)
+  supabase/functions/get-my-notice-count/         (+ rate-limit.js)
+  supabase/functions/get-my-active-status/        (+ rate-limit.js)
+  supabase/functions/get-my-loyalty/              (+ rate-limit.js)
