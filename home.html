@@ -63,6 +63,11 @@
       </div>
     </div>
 
+    <div class="card" id="training-card" style="display:none;">
+      <p class="card-label" id="training-title">Training Schedule</p>
+      <p style="color: var(--ink); font-size: 14px; line-height:1.6; margin:0; white-space: pre-wrap;" id="training-body"></p>
+    </div>
+
     <p class="footnote">
       <a href="fixtures.html" style="color: var(--inkSoft);">See all upcoming fixtures →</a>
     </p>
@@ -93,6 +98,7 @@
     loadActiveStatus(data.session.access_token);
     loadBalance(data.session.access_token);
     loadFixture(data.session.access_token);
+    loadTraining(data.session.access_token);
   }
 
   async function loadBalance(accessToken) {
@@ -137,6 +143,29 @@
       balanceError.textContent = err.message;
       balanceError.classList.add('visible');
       balanceError.style.display = 'block';
+    }
+  }
+
+  // Reuses the existing notices endpoint rather than a new one - the
+  // "training schedule" is just a single, ordinary pinned notice with
+  // category 'training'. Staff edit it via the same Table Editor stopgap
+  // as any other notice; nothing new needed on the backend for this.
+  async function loadTraining(accessToken) {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-notices`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const body = await res.json();
+      if (!res.ok || !body.notices) return;
+
+      const trainingNotice = body.notices.find((n) => n.category === 'training' && n.pinned);
+      if (!trainingNotice) return; // no training notice posted yet - card stays hidden
+
+      document.getElementById('training-title').textContent = trainingNotice.title || 'Training Schedule';
+      document.getElementById('training-body').textContent = trainingNotice.body;
+      document.getElementById('training-card').style.display = 'block';
+    } catch (err) {
+      // Non-critical - card just stays hidden this load.
     }
   }
 
