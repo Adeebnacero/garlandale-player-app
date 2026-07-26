@@ -5,10 +5,18 @@
 // rather than reusing get-my-notices, since every page needs this on
 // load (not just the notices page itself) and shouldn't have to fetch
 // full notice bodies just to show a number.
+//
+// Multi-child guardians: this badge is deliberately COMBINED across every
+// linked child, not scoped to whichever child happens to be selected in
+// the switcher - a notice relevant to either kid should surface the badge
+// regardless of which one you're currently looking at. A notice counts as
+// "unread" here if it's unread by AT LEAST ONE of the caller's linked
+// children (so two same-age siblings sharing one still-unread notice
+// count it once, not twice).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { checkRateLimit } from "./rate-limit.js";
-import { computeAgeGroup } from "./billing.js";
+import { checkRateLimit } from "../_shared/rate-limit.js";
+import { computeAgeGroup } from "../_shared/billing.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -38,9 +46,9 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { data: playerId, error: rpcErr } = await callerClient.rpc("current_player_id");
-  if (rpcErr || !playerId) {
-    return new Response(JSON.stringify({ error: "No linked player account for this user" }), {
+  const { data: playerIds, error: rpcErr } = await callerClient.rpc("current_player_ids");
+  if (rpcErr || !playerIds || playerIds.length === 0) {
+    return new Response(JSON.stringify({ error: "No linked player accounts for this user" }), {
       status: 403,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
     });
@@ -56,31 +64,43 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { data: player, error: playerErr } = await adminClient
+  const { data: players, error: playersErr } = await adminClient
     .from("players")
-    .select("dob, age_group_override")
-    .eq("id", playerId)
-    .single();
+    .select("id, dob, age_group_override")
+    .in("id", playerIds);
 
-  if (playerErr || !player) {
+  if (playersErr || !players || players.length === 0) {
     return new Response(JSON.stringify({ error: "Player record not found" }), {
       status: 404,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
     });
   }
 
-  const myAgeGroup = (player.age_group_override || computeAgeGroup(player.dob)).trim().toLowerCase();
+  const ageGroupByPlayerId = new Map(
+    players.map((p) => [p.id, (p.age_group_override || computeAgeGroup(p.dob)).trim().toLowerCase()])
+  );
 
   const [{ data: allNotices }, { data: reads }] = await Promise.all([
-    adminClient.from("notices").select("id, target_age_group"),
-    adminClient.from("notice_reads").select("notice_id").eq("player_id", playerId),
+    adminClient
+      .from("notices")
+      .select("id, target_age_group")
+      .order("posted_at", { ascending: false })
+      .limit(50), // keep in sync with get-my-notices' limit
+    adminClient.from("notice_reads").select("notice_id, player_id").in("player_id", playerIds),
   ]);
 
-  const readIds = new Set((reads ?? []).map((r) => r.notice_id));
+  // Set of "notice_id|player_id" pairs already read, so we can check
+  // per-child read status for each notice below.
+  const readPairs = new Set((reads ?? []).map((r) => `${r.notice_id}|${r.player_id}`));
+
   const unread = (allNotices ?? []).filter((n) => {
     const target = (n.target_age_group ?? "").trim().toLowerCase();
-    const relevant = target === "" || target === "all" || target === myAgeGroup;
-    return relevant && !readIds.has(n.id);
+    // Unread for this notice if ANY linked child is both eligible for it
+    // (age group matches, or it's an all-ages notice) AND hasn't read it.
+    return playerIds.some((pid) => {
+      const relevant = target === "" || target === "all" || target === ageGroupByPlayerId.get(pid);
+      return relevant && !readPairs.has(`${n.id}|${pid}`);
+    });
   }).length;
 
   return new Response(JSON.stringify({ unread }), {

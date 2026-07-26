@@ -13,8 +13,9 @@
 // endpoint's concern and a player has no reason to see staff-only notes.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { computeAgeGroup, isOver40 } from "./billing.js";
-import { checkRateLimit } from "./rate-limit.js";
+import { computeAgeGroup, isOver40 } from "../_shared/billing.js";
+import { checkRateLimit } from "../_shared/rate-limit.js";
+import { resolveRequestedPlayerId } from "../_shared/resolve-player.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -44,13 +45,15 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { data: playerId, error: rpcErr } = await callerClient.rpc("current_player_id");
-  if (rpcErr || !playerId) {
-    return new Response(JSON.stringify({ error: "No linked player account for this user" }), {
-      status: 403,
+  const requestedPlayerId = new URL(req.url).searchParams.get("player_id");
+  const resolved = await resolveRequestedPlayerId(callerClient, requestedPlayerId);
+  if (!resolved.ok) {
+    return new Response(JSON.stringify({ error: resolved.error }), {
+      status: resolved.status,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
     });
   }
+  const playerId = resolved.playerId;
 
   const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 

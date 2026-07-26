@@ -41,6 +41,8 @@
     <p class="greeting">Your profile</p>
     <h1 id="player-name">—</h1>
 
+    <div class="child-tabs" id="child-tabs" style="display:none;"></div>
+
     <div class="card">
       <p class="card-label">Registration</p>
       <p class="fixture-when" style="margin-bottom:4px;">Age group: <span id="age-group">—</span></p>
@@ -84,7 +86,13 @@
   import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
   import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
   import { cachedFetch, invalidateCacheKey } from './cache.js';
-  import { setupDrawer, setupRefreshAndSignOut, registerServiceWorker, loadNoticeBadge, loadActiveStatus } from './page-shared.js';
+  import {
+    setupDrawer, setupRefreshAndSignOut, registerServiceWorker,
+    loadNoticeBadge, loadActiveStatus,
+    loadMyPlayers, resolveSelectedPlayer, setSelectedPlayer, renderChildSwitcher,
+  } from './page-shared.js';
+
+  let selectedPlayerId = null;
 
   const loading = document.getElementById('loading');
   const app = document.getElementById('app');
@@ -103,24 +111,54 @@
     loading.style.display = 'none';
     app.style.display = 'block';
     const uid = data.session.user.id;
-    loadNoticeBadge(SUPABASE_URL, data.session.access_token, uid);
-    loadActiveStatus(SUPABASE_URL, data.session.access_token, uid);
-    loadProfile(data.session.access_token, uid);
+    const accessToken = data.session.access_token;
+
     setupDrawer();
     setupRefreshAndSignOut(supabase, uid);
     registerServiceWorker();
+    loadNoticeBadge(SUPABASE_URL, accessToken, uid);
+
+    let players = [];
+    try {
+      const playersBody = await loadMyPlayers(SUPABASE_URL, accessToken, uid);
+      players = playersBody.players || [];
+    } catch (err) {
+      // Fall through - loadProfile below still works for the common
+      // single-child case even with an empty players list.
+    }
+
+    selectedPlayerId = resolveSelectedPlayer(uid, players);
+
+    const childTabs = document.getElementById('child-tabs');
+    function onSelectChild(newPlayerId) {
+      selectedPlayerId = newPlayerId;
+      setSelectedPlayer(uid, selectedPlayerId);
+      renderChildSwitcher(childTabs, players, selectedPlayerId, onSelectChild);
+      loadActiveStatus(SUPABASE_URL, accessToken, uid, selectedPlayerId);
+      loadProfile(accessToken, uid, selectedPlayerId);
+    }
+    renderChildSwitcher(childTabs, players, selectedPlayerId, onSelectChild);
+
+    loadActiveStatus(SUPABASE_URL, accessToken, uid, selectedPlayerId);
+    loadProfile(accessToken, uid, selectedPlayerId);
   }
 
-  async function loadProfile(accessToken, userId) {
+  async function loadProfile(accessToken, userId, playerId) {
     const profileLoading = document.getElementById('profile-loading');
     const profileError = document.getElementById('profile-error');
     const form = document.getElementById('profile-form');
 
+    profileLoading.style.display = 'block';
+    profileError.classList.remove('visible');
+    profileError.style.display = 'none';
+    form.style.display = 'none';
+
     try {
-      const body = await cachedFetch(userId, 'get-my-profile', async () => {
-        const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-profile`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
+      const body = await cachedFetch(userId, `get-my-profile:${playerId}`, async () => {
+        const res = await fetch(
+          `${SUPABASE_URL}/functions/v1/get-my-profile?player_id=${encodeURIComponent(playerId)}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || 'Could not load profile');
         return json;
@@ -166,6 +204,7 @@
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          player_id: selectedPlayerId,
           phone: document.getElementById('phone').value,
           email: document.getElementById('email').value,
           guardian_name: document.getElementById('guardian_name').value,
@@ -178,7 +217,7 @@
       // The saved data is now stale in cache - bust just this one entry so
       // the next visit to this page (or a reload) shows the real values,
       // rather than waiting for the next 10am/5pm refresh window.
-      invalidateCacheKey(sessionData.session.user.id, 'get-my-profile');
+      invalidateCacheKey(sessionData.session.user.id, `get-my-profile:${selectedPlayerId}`);
 
       saveSuccess.style.display = 'block';
     } catch (err) {

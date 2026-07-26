@@ -41,6 +41,8 @@
     <p class="greeting">Welcome back,</p>
     <h1 id="player-name">—</h1>
 
+    <div class="child-tabs" id="child-tabs" style="display:none;"></div>
+
     <div class="card">
       <p class="card-label">Subscription balance</p>
       <div id="balance-loading" style="color: var(--inkSoft); font-size: 14px;">Loading your balance…</div>
@@ -79,7 +81,11 @@
   import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
   import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
   import { cachedFetch } from './cache.js';
-  import { setupDrawer, setupRefreshAndSignOut, registerServiceWorker, loadNoticeBadge, loadActiveStatus } from './page-shared.js';
+  import {
+    setupDrawer, setupRefreshAndSignOut, registerServiceWorker,
+    loadNoticeBadge, loadActiveStatus,
+    loadMyPlayers, resolveSelectedPlayer, setSelectedPlayer, renderChildSwitcher,
+  } from './page-shared.js';
 
   const loading = document.getElementById('loading');
   const app = document.getElementById('app');
@@ -98,26 +104,66 @@
     loading.style.display = 'none';
     app.style.display = 'block';
     const uid = data.session.user.id;
-    loadNoticeBadge(SUPABASE_URL, data.session.access_token, uid);
-    loadActiveStatus(SUPABASE_URL, data.session.access_token, uid);
-    loadBalance(data.session.access_token, uid);
-    loadFixture(data.session.access_token, uid);
-    loadTraining(data.session.access_token, uid);
+    const accessToken = data.session.access_token;
+
     setupDrawer();
     setupRefreshAndSignOut(supabase, uid);
     registerServiceWorker();
+
+    // Combined across every linked child - unaffected by which one is
+    // currently selected in the switcher below.
+    loadNoticeBadge(SUPABASE_URL, accessToken, uid);
+    loadTraining(accessToken, uid);
+
+    let players = [];
+    try {
+      const playersBody = await loadMyPlayers(SUPABASE_URL, accessToken, uid);
+      players = playersBody.players || [];
+    } catch (err) {
+      // Fall through with an empty list - loadForChild below will still
+      // attempt the per-child calls with no player_id, which resolves to
+      // the caller's own single linked player for the common case.
+    }
+
+    let selectedPlayerId = resolveSelectedPlayer(uid, players);
+
+    const childTabs = document.getElementById('child-tabs');
+
+    function onSelectChild(newPlayerId) {
+      selectedPlayerId = newPlayerId;
+      setSelectedPlayer(uid, selectedPlayerId);
+      renderChildSwitcher(childTabs, players, selectedPlayerId, onSelectChild);
+      loadForChild(accessToken, uid, selectedPlayerId);
+    }
+    renderChildSwitcher(childTabs, players, selectedPlayerId, onSelectChild);
+
+    loadForChild(accessToken, uid, selectedPlayerId);
   }
 
-  async function loadBalance(accessToken, userId) {
+  function loadForChild(accessToken, uid, playerId) {
+    loadActiveStatus(SUPABASE_URL, accessToken, uid, playerId);
+    loadBalance(accessToken, uid, playerId);
+    loadFixture(accessToken, uid, playerId);
+  }
+
+  async function loadBalance(accessToken, userId, playerId) {
     const balanceLoading = document.getElementById('balance-loading');
     const balanceError = document.getElementById('balance-error');
     const balanceContent = document.getElementById('balance-content');
 
+    // Reset to loading state - relevant when switching between children,
+    // so the previous child's figures don't linger while the new ones load.
+    balanceLoading.style.display = 'block';
+    balanceError.classList.remove('visible');
+    balanceError.style.display = 'none';
+    balanceContent.style.display = 'none';
+
     try {
-      const body = await cachedFetch(userId, 'get-my-balance', async () => {
-        const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-balance`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
+      const body = await cachedFetch(userId, `get-my-balance:${playerId}`, async () => {
+        const res = await fetch(
+          `${SUPABASE_URL}/functions/v1/get-my-balance?player_id=${encodeURIComponent(playerId)}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || 'Could not load balance');
         return json;
@@ -180,16 +226,21 @@
     }
   }
 
-  async function loadFixture(accessToken, userId) {
+  async function loadFixture(accessToken, userId, playerId) {
     const fixtureLoading = document.getElementById('fixture-loading');
     const fixtureNone = document.getElementById('fixture-none');
     const fixtureContent = document.getElementById('fixture-content');
 
+    fixtureLoading.style.display = 'block';
+    fixtureNone.style.display = 'none';
+    fixtureContent.style.display = 'none';
+
     try {
-      const body = await cachedFetch(userId, 'get-my-fixtures', async () => {
-        const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-fixtures`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
+      const body = await cachedFetch(userId, `get-my-fixtures:${playerId}`, async () => {
+        const res = await fetch(
+          `${SUPABASE_URL}/functions/v1/get-my-fixtures?player_id=${encodeURIComponent(playerId)}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || 'Could not load fixtures');
         return json;
