@@ -54,7 +54,11 @@
   import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
   import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
   import { cachedFetch, invalidateCacheKey } from './cache.js';
-  import { setupDrawer, setupRefreshAndSignOut, registerServiceWorker, loadNoticeBadge, loadActiveStatus, escapeHtml } from './page-shared.js';
+  import {
+    setupDrawer, setupRefreshAndSignOut, registerServiceWorker,
+    loadNoticeBadge, loadActiveStatus, escapeHtml,
+    loadMyPlayers, resolveSelectedPlayer,
+  } from './page-shared.js';
 
   const loading = document.getElementById('loading');
   const app = document.getElementById('app');
@@ -73,15 +77,33 @@
     loading.style.display = 'none';
     app.style.display = 'block';
     const uid = data.session.user.id;
-    loadNoticeBadge(SUPABASE_URL, data.session.access_token, uid);
-    loadActiveStatus(SUPABASE_URL, data.session.access_token, uid);
-    loadNotices(data.session.access_token, uid);
+    const accessToken = data.session.access_token;
+
     setupDrawer();
     setupRefreshAndSignOut(supabase, uid);
     registerServiceWorker();
+
+    // Notices are deliberately a single combined feed across every linked
+    // child (see get-my-notices) - no switcher on this page. The Loyalty
+    // nav item's visibility still needs to reflect ONE child's active
+    // status though, so it uses whichever child is currently selected
+    // elsewhere in the app (persisted from home/profile/fixtures).
+    let players = [];
+    try {
+      const playersBody = await loadMyPlayers(SUPABASE_URL, accessToken, uid);
+      players = playersBody.players || [];
+    } catch (err) {
+      // Fall through - active-status check below still works for the
+      // common single-child case even with an empty players list.
+    }
+    const selectedPlayerId = resolveSelectedPlayer(uid, players);
+
+    loadNoticeBadge(SUPABASE_URL, accessToken, uid);
+    if (selectedPlayerId) loadActiveStatus(SUPABASE_URL, accessToken, uid, selectedPlayerId);
+    loadNotices(accessToken, uid, players.length > 1);
   }
 
-  async function loadNotices(accessToken, userId) {
+  async function loadNotices(accessToken, userId, showChildTags) {
     const noticesLoading = document.getElementById('notices-loading');
     const noticesError = document.getElementById('notices-error');
     const noticesEmpty = document.getElementById('notices-empty');
@@ -118,6 +140,9 @@
             </p>
             <p class="fixture-when" style="margin-bottom:10px;">
               ${categoryLabel[n.category] || 'Announcement'} · ${dateFmt(n.posted_at)}
+              ${showChildTags && n.for_children && n.for_children.length
+                ? ' · For ' + n.for_children.map((c) => escapeHtml(c.name)).join(', ')
+                : ''}
             </p>
             <p style="color: var(--ink); font-size: 14px; line-height:1.5; margin:0; white-space: pre-wrap;">${escapeHtml(n.body)}</p>
           </div>

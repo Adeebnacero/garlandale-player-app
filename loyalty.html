@@ -54,6 +54,8 @@
     <p class="greeting">Member benefits</p>
     <h1 style="margin-bottom: 20px;">Loyalty</h1>
 
+    <div class="child-tabs" id="child-tabs" style="display:none;"></div>
+
     <div id="loyalty-loading" style="color: var(--inkSoft); font-size: 14px;">Loading…</div>
     <div id="loyalty-error" class="login-error" style="display:none;"></div>
     <div id="loyalty-inactive" style="display:none; color: var(--inkSoft); font-size: 14px; text-align:center; padding: 24px 0;">
@@ -78,7 +80,11 @@
   import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
   import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
   import { cachedFetch } from './cache.js';
-  import { setupDrawer, setupRefreshAndSignOut, registerServiceWorker, loadNoticeBadge, escapeHtml, escapeAttr } from './page-shared.js';
+  import {
+    setupDrawer, setupRefreshAndSignOut, registerServiceWorker,
+    loadNoticeBadge, escapeHtml, escapeAttr,
+    loadMyPlayers, resolveSelectedPlayer, setSelectedPlayer, renderChildSwitcher,
+  } from './page-shared.js';
 
   const loading = document.getElementById('loading');
   const app = document.getElementById('app');
@@ -97,25 +103,55 @@
     loading.style.display = 'none';
     app.style.display = 'block';
     const uid = data.session.user.id;
-    loadLoyalty(data.session.access_token, uid);
-    loadNoticeBadge(SUPABASE_URL, data.session.access_token, uid);
-    document.getElementById('loyalty-nav-item').style.display = 'flex';
+    const accessToken = data.session.access_token;
+
     setupDrawer();
     setupRefreshAndSignOut(supabase, uid);
     registerServiceWorker();
+    loadNoticeBadge(SUPABASE_URL, accessToken, uid);
+    document.getElementById('loyalty-nav-item').style.display = 'flex';
+
+    let players = [];
+    try {
+      const playersBody = await loadMyPlayers(SUPABASE_URL, accessToken, uid);
+      players = playersBody.players || [];
+    } catch (err) {
+      // Fall through - loadLoyalty below still works for the common
+      // single-child case even with an empty players list.
+    }
+
+    let selectedPlayerId = resolveSelectedPlayer(uid, players);
+
+    const childTabs = document.getElementById('child-tabs');
+    function onSelectChild(newPlayerId) {
+      selectedPlayerId = newPlayerId;
+      setSelectedPlayer(uid, selectedPlayerId);
+      renderChildSwitcher(childTabs, players, selectedPlayerId, onSelectChild);
+      loadLoyalty(accessToken, uid, selectedPlayerId);
+    }
+    renderChildSwitcher(childTabs, players, selectedPlayerId, onSelectChild);
+
+    loadLoyalty(accessToken, uid, selectedPlayerId);
   }
 
-  async function loadLoyalty(accessToken, userId) {
+  async function loadLoyalty(accessToken, userId, playerId) {
     const loyaltyLoading = document.getElementById('loyalty-loading');
     const loyaltyError = document.getElementById('loyalty-error');
     const loyaltyInactive = document.getElementById('loyalty-inactive');
     const loyaltyContent = document.getElementById('loyalty-content');
 
+    loyaltyLoading.style.display = 'block';
+    loyaltyError.classList.remove('visible');
+    loyaltyError.style.display = 'none';
+    loyaltyInactive.style.display = 'none';
+    loyaltyContent.style.display = 'none';
+
     try {
-      const body = await cachedFetch(userId, 'get-my-loyalty', async () => {
-        const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-loyalty`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
+      const body = await cachedFetch(userId, `get-my-loyalty:${playerId}`, async () => {
+        const res = await fetch(
+          `${SUPABASE_URL}/functions/v1/get-my-loyalty?player_id=${encodeURIComponent(playerId)}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || 'Could not load loyalty card');
         return json;

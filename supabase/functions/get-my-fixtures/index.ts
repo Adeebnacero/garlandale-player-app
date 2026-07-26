@@ -18,8 +18,9 @@
 // just what's relevant for display is this endpoint's job.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { computeAgeGroup } from "./billing.js";
-import { checkRateLimit } from "./rate-limit.js";
+import { computeAgeGroup } from "../_shared/billing.js";
+import { checkRateLimit } from "../_shared/rate-limit.js";
+import { resolveRequestedPlayerId } from "../_shared/resolve-player.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -49,16 +50,18 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Confirm the caller is a linked player at all - this endpoint doesn't
-  // need WHICH player, just that they're one, since fixtures aren't
-  // player-scoped.
-  const { data: playerId, error: rpcErr } = await callerClient.rpc("current_player_id");
-  if (rpcErr || !playerId) {
-    return new Response(JSON.stringify({ error: "No linked player account for this user" }), {
-      status: 403,
+  // This endpoint filters fixtures to one player's age group, so it does
+  // need to know WHICH of the caller's linked children the request is
+  // for (a guardian's kids in different age groups see different lists).
+  const requestedPlayerId = new URL(req.url).searchParams.get("player_id");
+  const resolved = await resolveRequestedPlayerId(callerClient, requestedPlayerId);
+  if (!resolved.ok) {
+    return new Response(JSON.stringify({ error: resolved.error }), {
+      status: resolved.status,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
     });
   }
+  const playerId = resolved.playerId;
 
   const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 

@@ -1,17 +1,25 @@
 // supabase/functions/mark-notice-read/index.ts
 //
-// Player-facing endpoint: records that the calling player has read a
-// specific notice. Deliberately writes using the CALLER's own JWT
-// (not the service role) - the notice_reads_insert_own RLS policy
-// (player_id = current_player_id()) is the actual enforcement here,
-// so a player can only ever mark their own reads, never anyone else's.
-// This is the opposite pattern from update-my-profile, which needed
-// service-role writes for a column whitelist RLS can't express; a
-// straightforward "row belongs to me" check is exactly what RLS is
-// built for, so there's no need to bypass it here.
+// Player-facing endpoint: records that the calling guardian has read a
+// specific notice, on behalf of every one of their linked children the
+// notice is actually relevant to (matching for_children in
+// get-my-notices) - not just whichever child happens to be selected in
+// the switcher. A notice with a single relevant child (the common case)
+// behaves exactly as before.
+//
+// Now writes via the SERVICE-ROLE client rather than the caller's own
+// JWT. The previous "row belongs to me" RLS policy
+// (notice_reads_insert_own: player_id = current_player_id()) only ever
+// let a caller write ONE player_id - insufficient once a guardian needs
+// to mark a notice read for more than one linked child in the same
+// request. The safety property doesn't change: current_player_ids() is
+// still resolved from the caller's own JWT first, and every player_id
+// written below is drawn from that same validated set - never from
+// anything the client sends directly.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { checkRateLimit } from "./rate-limit.js";
+import { checkRateLimit } from "../_shared/rate-limit.js";
+import { computeAgeGroup } from "../_shared/billing.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -48,19 +56,17 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { data: playerId, error: rpcErr } = await callerClient.rpc("current_player_id");
-  if (rpcErr || !playerId) {
-    return new Response(JSON.stringify({ error: "No linked player account for this user" }), {
+  const { data: playerIds, error: rpcErr } = await callerClient.rpc("current_player_ids");
+  if (rpcErr || !playerIds || playerIds.length === 0) {
+    return new Response(JSON.stringify({ error: "No linked player accounts for this user" }), {
       status: 403,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
     });
   }
 
-  // Rate-limit table has no RLS policies - only the service role can
-  // touch it - so a separate admin client is needed here purely for this
-  // check, even though the actual write below uses the caller's own JWT.
-  const adminClientForRateLimit = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-  const rl = await checkRateLimit(adminClientForRateLimit, userData.user.id, "mark-notice-read", {
+  const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+  const rl = await checkRateLimit(adminClient, userData.user.id, "mark-notice-read", {
     maxRequests: 60,
     windowSeconds: 60,
   });
@@ -89,13 +95,54 @@ Deno.serve(async (req) => {
     });
   }
 
+  const { data: notice, error: noticeErr } = await adminClient
+    .from("notices")
+    .select("target_age_group")
+    .eq("id", noticeId)
+    .single();
+
+  if (noticeErr || !notice) {
+    return new Response(JSON.stringify({ error: "Notice not found" }), {
+      status: 404,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
+  }
+
+  const target = (notice.target_age_group ?? "").trim().toLowerCase();
+
+  const { data: players, error: playersErr } = await adminClient
+    .from("players")
+    .select("id, dob, age_group_override")
+    .in("id", playerIds);
+
+  if (playersErr || !players) {
+    return new Response(JSON.stringify({ error: "Could not load player accounts" }), {
+      status: 500,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
+  }
+
+  const relevantPlayerIds = players
+    .filter((p) => {
+      const ageGroup = (p.age_group_override || computeAgeGroup(p.dob)).trim().toLowerCase();
+      return target === "" || target === "all" || target === ageGroup;
+    })
+    .map((p) => p.id);
+
+  if (relevantPlayerIds.length === 0) {
+    return new Response(
+      JSON.stringify({ error: "This notice isn't relevant to any of your linked players" }),
+      { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  }
+
   // upsert with ignoreDuplicates: re-marking an already-read notice is a
   // harmless no-op, not an error - the client doesn't need to track which
-  // notices it's already reported.
-  const { error: insertErr } = await callerClient
+  // notices it's already reported, for which child.
+  const { error: insertErr } = await adminClient
     .from("notice_reads")
     .upsert(
-      { player_id: playerId, notice_id: noticeId },
+      relevantPlayerIds.map((playerId) => ({ player_id: playerId, notice_id: noticeId })),
       { onConflict: "player_id,notice_id", ignoreDuplicates: true }
     );
 

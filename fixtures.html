@@ -41,6 +41,8 @@
     <p class="greeting">Upcoming</p>
     <h1 style="margin-bottom: 20px;">Fixtures</h1>
 
+    <div class="child-tabs" id="child-tabs" style="display:none;"></div>
+
     <div id="fixtures-loading" style="color: var(--inkSoft); font-size: 14px;">Loading fixtures…</div>
     <div id="fixtures-error" class="login-error" style="display:none;"></div>
     <div id="fixtures-empty" style="display:none; color: var(--inkSoft); font-size: 14px; text-align:center; padding: 24px 0;">
@@ -56,7 +58,11 @@
   import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
   import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
   import { cachedFetch } from './cache.js';
-  import { setupDrawer, setupRefreshAndSignOut, registerServiceWorker, loadNoticeBadge, loadActiveStatus, escapeHtml } from './page-shared.js';
+  import {
+    setupDrawer, setupRefreshAndSignOut, registerServiceWorker,
+    loadNoticeBadge, loadActiveStatus, escapeHtml,
+    loadMyPlayers, resolveSelectedPlayer, setSelectedPlayer, renderChildSwitcher,
+  } from './page-shared.js';
 
   const loading = document.getElementById('loading');
   const app = document.getElementById('app');
@@ -75,25 +81,56 @@
     loading.style.display = 'none';
     app.style.display = 'block';
     const uid = data.session.user.id;
-    loadNoticeBadge(SUPABASE_URL, data.session.access_token, uid);
-    loadActiveStatus(SUPABASE_URL, data.session.access_token, uid);
-    loadFixtures(data.session.access_token, uid);
+    const accessToken = data.session.access_token;
+
     setupDrawer();
     setupRefreshAndSignOut(supabase, uid);
     registerServiceWorker();
+    loadNoticeBadge(SUPABASE_URL, accessToken, uid);
+
+    let players = [];
+    try {
+      const playersBody = await loadMyPlayers(SUPABASE_URL, accessToken, uid);
+      players = playersBody.players || [];
+    } catch (err) {
+      // Fall through - loadFixtures below still works for the common
+      // single-child case even with an empty players list.
+    }
+
+    let selectedPlayerId = resolveSelectedPlayer(uid, players);
+
+    const childTabs = document.getElementById('child-tabs');
+    function onSelectChild(newPlayerId) {
+      selectedPlayerId = newPlayerId;
+      setSelectedPlayer(uid, selectedPlayerId);
+      renderChildSwitcher(childTabs, players, selectedPlayerId, onSelectChild);
+      loadActiveStatus(SUPABASE_URL, accessToken, uid, selectedPlayerId);
+      loadFixtures(accessToken, uid, selectedPlayerId);
+    }
+    renderChildSwitcher(childTabs, players, selectedPlayerId, onSelectChild);
+
+    loadActiveStatus(SUPABASE_URL, accessToken, uid, selectedPlayerId);
+    loadFixtures(accessToken, uid, selectedPlayerId);
   }
 
-  async function loadFixtures(accessToken, userId) {
+  async function loadFixtures(accessToken, userId, playerId) {
     const fixturesLoading = document.getElementById('fixtures-loading');
     const fixturesError = document.getElementById('fixtures-error');
     const fixturesEmpty = document.getElementById('fixtures-empty');
     const fixturesList = document.getElementById('fixtures-list');
 
+    fixturesLoading.style.display = 'block';
+    fixturesError.classList.remove('visible');
+    fixturesError.style.display = 'none';
+    fixturesEmpty.style.display = 'none';
+    fixturesList.innerHTML = '';
+
     try {
-      const body = await cachedFetch(userId, 'get-my-fixtures', async () => {
-        const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-fixtures`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
+      const body = await cachedFetch(userId, `get-my-fixtures:${playerId}`, async () => {
+        const res = await fetch(
+          `${SUPABASE_URL}/functions/v1/get-my-fixtures?player_id=${encodeURIComponent(playerId)}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || 'Could not load fixtures');
         return json;

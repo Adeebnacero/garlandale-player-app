@@ -2,12 +2,20 @@
 //
 // Player-facing endpoint: returns the notice board, pinned items first,
 // then most recent. Same auth pattern as the other endpoints - confirm
-// the caller is A linked player (notices aren't player-specific, so no
-// need to know WHICH one), then read with the service-role key.
+// the caller has at least one linked player, then read with the
+// service-role key.
+//
+// Multi-child guardians: returns ONE combined feed across every linked
+// child (consistent with get-my-notice-count's combined badge), not a
+// feed scoped to whichever child is selected in the switcher. Each notice
+// carries `for_children` (which of the caller's kids it's relevant to)
+// and `is_read` is true only once EVERY relevant child has read it - so
+// it keeps showing as unread until it's been seen on behalf of all of
+// them, matching the combined badge logic exactly.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { checkRateLimit } from "./rate-limit.js";
-import { computeAgeGroup } from "./billing.js";
+import { checkRateLimit } from "../_shared/rate-limit.js";
+import { computeAgeGroup } from "../_shared/billing.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -37,9 +45,9 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { data: playerId, error: rpcErr } = await callerClient.rpc("current_player_id");
-  if (rpcErr || !playerId) {
-    return new Response(JSON.stringify({ error: "No linked player account for this user" }), {
+  const { data: playerIds, error: rpcErr } = await callerClient.rpc("current_player_ids");
+  if (rpcErr || !playerIds || playerIds.length === 0) {
+    return new Response(JSON.stringify({ error: "No linked player accounts for this user" }), {
       status: 403,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
     });
@@ -55,23 +63,26 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Need the player's own age group to filter targeted notices - same
-  // computeAgeGroup() logic as get-my-profile/get-my-fixtures, so all
-  // three stay consistent with each other by construction.
-  const { data: player, error: playerErr } = await adminClient
+  // Need every linked child's own age group to filter targeted notices -
+  // same computeAgeGroup() logic as get-my-profile/get-my-fixtures, so
+  // all three stay consistent with each other by construction.
+  const { data: players, error: playersErr } = await adminClient
     .from("players")
-    .select("dob, age_group_override")
-    .eq("id", playerId)
-    .single();
+    .select("id, name, dob, age_group_override")
+    .in("id", playerIds);
 
-  if (playerErr || !player) {
+  if (playersErr || !players || players.length === 0) {
     return new Response(JSON.stringify({ error: "Player record not found" }), {
       status: 404,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
     });
   }
 
-  const myAgeGroup = (player.age_group_override || computeAgeGroup(player.dob)).trim().toLowerCase();
+  const childMeta = players.map((p) => ({
+    id: p.id,
+    name: p.name,
+    ageGroup: (p.age_group_override || computeAgeGroup(p.dob)).trim().toLowerCase(),
+  }));
 
   const { data: notices, error: noticesErr } = await adminClient
     .from("notices")
@@ -88,30 +99,38 @@ Deno.serve(async (req) => {
   }
 
   // A notice with no target_age_group (or 'ALL') is for everyone;
-  // anything else must match this player's own age group.
+  // anything else must match at least one linked child's own age group.
   const relevant = (notices ?? [])
-    .filter((n) => {
+    .map((n) => {
       const target = (n.target_age_group ?? "").trim().toLowerCase();
-      return target === "" || target === "all" || target === myAgeGroup;
+      const forChildren = childMeta.filter(
+        (c) => target === "" || target === "all" || target === c.ageGroup
+      );
+      return { notice: n, forChildren };
     })
+    .filter((n) => n.forChildren.length > 0)
     .slice(0, 30);
 
-  // Fetch which of these notices this player has already read, so the
-  // client can show unread ones distinctly without a second round trip.
+  // Fetch which of these notices each relevant child has already read, so
+  // the client can show unread ones distinctly without a second round trip.
   const { data: reads } = await adminClient
     .from("notice_reads")
-    .select("notice_id")
-    .eq("player_id", playerId);
+    .select("notice_id, player_id")
+    .in("player_id", playerIds);
 
-  const readIds = new Set((reads ?? []).map((r) => r.notice_id));
-  const withReadStatus = relevant.map((n) => ({
+  const readPairs = new Set((reads ?? []).map((r) => `${r.notice_id}|${r.player_id}`));
+
+  const withReadStatus = relevant.map(({ notice: n, forChildren }) => ({
     id: n.id,
     title: n.title,
     body: n.body,
     category: n.category,
     pinned: n.pinned,
     posted_at: n.posted_at,
-    is_read: readIds.has(n.id),
+    for_children: forChildren.map((c) => ({ id: c.id, name: c.name })),
+    // Read only once every relevant child has read it - keeps this in
+    // lockstep with get-my-notice-count's combined badge logic.
+    is_read: forChildren.every((c) => readPairs.has(`${n.id}|${c.id}`)),
   }));
 
   return new Response(JSON.stringify({ notices: withReadStatus }), {

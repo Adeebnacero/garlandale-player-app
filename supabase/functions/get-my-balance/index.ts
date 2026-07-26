@@ -7,24 +7,28 @@
 // player app query Supabase's REST API directly.
 //
 // Auth model:
-//   1. Validate the caller's JWT and resolve current_player_id() AS THE
-//      CALLER (their own token, respects RLS/security-definer as normal).
-//      If this comes back null, the caller isn't a linked player - reject.
-//   2. Once we have a confirmed player id, switch to the service-role
-//      client for the actual data reads. RLS on payments/tiers/players is
-//      NOT what's protecting this data - the explicit `.eq('id', playerId)`
-//      / `.eq('player_id', playerId)` filters below are. RLS stays enabled
-//      on these tables as defense-in-depth for other access paths (e.g.
-//      someone hitting PostgREST directly), not as this function's
-//      security boundary.
+//   1. Validate the caller's JWT and resolve which of their linked
+//      children (current_player_ids()) this request is for, via
+//      resolveRequestedPlayerId - a guardian with multiple kids passes
+//      ?player_id=..., everyone else (the common single-child case) gets
+//      their one linked player by default. Requesting a player_id outside
+//      the caller's own linked set is rejected with 403.
+//   2. Once we have a confirmed, authorized player id, switch to the
+//      service-role client for the actual data reads. RLS on
+//      payments/tiers/players is NOT what's protecting this data - the
+//      explicit `.eq('id', playerId)` / `.eq('player_id', playerId)`
+//      filters below are. RLS stays enabled on these tables as
+//      defense-in-depth for other access paths (e.g. someone hitting
+//      PostgREST directly), not as this function's security boundary.
 //
 // billing.js is copied in unmodified from the admin app (see billing.test.js
 // for the 35 tests already covering this logic) - do not re-derive the
 // balance math here, only adapt DB rows into the shape it expects.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { playerFinance, complianceStatus, complianceReason } from "./billing.js";
-import { checkRateLimit } from "./rate-limit.js";
+import { playerFinance, complianceStatus, complianceReason } from "../_shared/billing.js";
+import { checkRateLimit } from "../_shared/rate-limit.js";
+import { resolveRequestedPlayerId } from "../_shared/resolve-player.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -64,13 +68,15 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { data: playerId, error: rpcErr } = await callerClient.rpc("current_player_id");
-  if (rpcErr || !playerId) {
-    return new Response(
-      JSON.stringify({ error: "No linked player account for this user" }),
-      { status: 403, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-    );
+  const requestedPlayerId = new URL(req.url).searchParams.get("player_id");
+  const resolved = await resolveRequestedPlayerId(callerClient, requestedPlayerId);
+  if (!resolved.ok) {
+    return new Response(JSON.stringify({ error: resolved.error }), {
+      status: resolved.status,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
   }
+  const playerId = resolved.playerId;
 
   // ---- Rate limit: reject if this player has hit this endpoint too
   // often recently. Checked using the same service-role client the data

@@ -25,7 +25,8 @@
 // loudly, not masking.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { checkRateLimit } from "./rate-limit.js";
+import { checkRateLimit } from "../_shared/rate-limit.js";
+import { resolveRequestedPlayerId } from "../_shared/resolve-player.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -38,6 +39,23 @@ const CORS_HEADERS = {
 };
 
 const EDITABLE_FIELDS = ["phone", "email", "guardian_name", "guardian_phone"];
+
+// Per-field validation. Kept intentionally permissive (this is a contact
+// book, not a form with rigid formatting requirements) but bounded enough to
+// catch obvious garbage before it lands in the database and breaks
+// downstream email/SMS flows.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Digits plus common separators/punctuation used in phone numbers
+// (spaces, dashes, parens, leading +). Deliberately not stricter than that -
+// international formats vary too much to validate more tightly here.
+const PHONE_RE = /^[0-9+()\-.\s]+$/;
+
+const FIELD_RULES: Record<string, { maxLength: number; pattern?: RegExp; label: string }> = {
+  phone: { maxLength: 30, pattern: PHONE_RE, label: "Phone" },
+  guardian_phone: { maxLength: 30, pattern: PHONE_RE, label: "Guardian phone" },
+  email: { maxLength: 254, pattern: EMAIL_RE, label: "Email" },
+  guardian_name: { maxLength: 100, label: "Guardian name" },
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -60,14 +78,6 @@ Deno.serve(async (req) => {
   if (userErr || !userData?.user) {
     return new Response(JSON.stringify({ error: "Not authenticated" }), {
       status: 401,
-      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-    });
-  }
-
-  const { data: playerId, error: rpcErr } = await callerClient.rpc("current_player_id");
-  if (rpcErr || !playerId) {
-    return new Response(JSON.stringify({ error: "No linked player account for this user" }), {
-      status: 403,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
     });
   }
@@ -98,7 +108,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  const keys = Object.keys(body);
+  const keys = Object.keys(body).filter((k) => k !== "player_id");
   if (keys.length === 0) {
     return new Response(JSON.stringify({ error: "No fields provided" }), {
       status: 400,
@@ -114,6 +124,21 @@ Deno.serve(async (req) => {
     );
   }
 
+  // player_id is optional in the body - a single-child guardian (still the
+  // overwhelming majority of accounts) never needs to send it, and gets
+  // their one linked player by default. A multi-child guardian must send
+  // it, and it must be one of THEIR OWN linked children - this is what
+  // stops one guardian from editing another family's player record.
+  const requestedPlayerId = typeof body.player_id === "string" ? body.player_id : null;
+  const resolved = await resolveRequestedPlayerId(callerClient, requestedPlayerId);
+  if (!resolved.ok) {
+    return new Response(JSON.stringify({ error: resolved.error }), {
+      status: resolved.status,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
+  }
+  const playerId = resolved.playerId;
+
   const update: Record<string, string> = {};
   for (const key of EDITABLE_FIELDS) {
     if (key in body) {
@@ -124,7 +149,28 @@ Deno.serve(async (req) => {
           headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
         });
       }
-      update[key] = value.trim();
+
+      const trimmed = value.trim();
+      const rule = FIELD_RULES[key];
+
+      if (trimmed.length > rule.maxLength) {
+        return new Response(
+          JSON.stringify({ error: `${rule.label} must be ${rule.maxLength} characters or fewer` }),
+          { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Empty string clears the field - allow it through without pattern
+      // checks (e.g. a player removing a guardian phone they no longer want
+      // stored).
+      if (trimmed.length > 0 && rule.pattern && !rule.pattern.test(trimmed)) {
+        return new Response(
+          JSON.stringify({ error: `${rule.label} is not a valid format` }),
+          { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        );
+      }
+
+      update[key] = trimmed;
     }
   }
 
