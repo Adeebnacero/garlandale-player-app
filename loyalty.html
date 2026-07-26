@@ -44,6 +44,12 @@
     align-items: center;
     justify-content: center;
   }
+  .id-card-badge {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    margin-bottom: 10px;
+  }
   .id-card-hint {
     font-size: 10px;
     letter-spacing: 0.08em;
@@ -330,6 +336,8 @@
     return new Promise((resolve, reject) => {
       const tx = db.transaction(PHOTO_STORE, 'readonly');
       const r = tx.objectStore(PHOTO_STORE).get(key);
+      tx.oncomplete = () => db.close(); // release the connection so nothing is left half-open
+      tx.onerror = () => db.close();
       r.onsuccess = () => resolve(r.result || null);
       r.onerror = () => reject(r.error);
     });
@@ -340,9 +348,40 @@
     return new Promise((resolve, reject) => {
       const tx = db.transaction(PHOTO_STORE, 'readwrite');
       tx.objectStore(PHOTO_STORE).put(blob, key);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      // Explicitly closing the connection on tx completion forces WebKit/Safari
+      // to commit the write to disk before we consider the save "done" — this
+      // is the fix for the photo disappearing after navigating to another page.
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
     });
+  }
+
+  // --- Local-only redundancy layer ---------------------------------------
+  // iOS WebKit (Safari and Chrome-on-iOS, which is Safari under the hood)
+  // has a known issue where an IndexedDB write can report success in JS
+  // without actually being flushed to disk before a full page navigation.
+  // Since this app is a multi-page app (every nav link is a full reload,
+  // not a SPA route), that's exactly the failure mode being hit. localStorage
+  // writes are synchronous and survive this far more reliably, so we mirror
+  // the (already-compressed, small) photo there as a fallback. Still 100%
+  // on-device — nothing here ever touches Supabase or the network.
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function base64ToBlob(dataUrl) {
+    const [header, base64] = dataUrl.split(',');
+    const mimeMatch = header.match(/data:(.*?);base64/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
   }
 
   function compressImageFile(file, { maxDim = 640, quality = 0.72 } = {}) {
@@ -467,6 +506,8 @@
       openCamera();
     });
 
+    const lsKey = `id-photo:${uid}`;
+
     fileInput.addEventListener('change', async (e) => {
       const file = e.target.files && e.target.files[0];
       e.target.value = ''; // allow re-selecting the same file next time
@@ -475,6 +516,13 @@
       try {
         const blob = await compressImageFile(file);
         await setPhotoBlob(photoKey, blob);
+        // Synchronous localStorage write as a redundancy layer — see note above.
+        try {
+          const base64 = await blobToBase64(blob);
+          localStorage.setItem(lsKey, base64);
+        } catch (mirrorErr) {
+          console.warn('localStorage mirror failed (non-fatal)', mirrorErr);
+        }
         showPhoto(blob);
         setStatus('Stored on this device', false);
       } catch (err) {
@@ -483,10 +531,19 @@
       }
     });
 
-    // Load any existing photo from IndexedDB.
+    // Load any existing photo: try IndexedDB first, fall back to the
+    // localStorage mirror if IndexedDB came back empty (the WebKit bug).
     (async () => {
       try {
-        const blob = await getPhotoBlob(photoKey);
+        let blob = await getPhotoBlob(photoKey);
+        if (!blob) {
+          const base64 = localStorage.getItem(lsKey);
+          if (base64) {
+            blob = base64ToBlob(base64);
+            // Opportunistically re-save into IndexedDB now that we have it.
+            setPhotoBlob(photoKey, blob).catch(() => {});
+          }
+        }
         if (blob) showPhoto(blob);
       } catch (err) {
         console.error('Failed to load ID photo', err);
