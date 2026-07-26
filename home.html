@@ -78,7 +78,8 @@
 <script type="module">
   import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
   import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-  import { cachedFetch, clearUserCache } from './cache.js';
+  import { cachedFetch } from './cache.js';
+  import { setupDrawer, setupRefreshAndSignOut, registerServiceWorker, loadNoticeBadge, loadActiveStatus } from './page-shared.js';
 
   const loading = document.getElementById('loading');
   const app = document.getElementById('app');
@@ -97,11 +98,14 @@
     loading.style.display = 'none';
     app.style.display = 'block';
     const uid = data.session.user.id;
-    loadNoticeBadge(data.session.access_token, uid);
-    loadActiveStatus(data.session.access_token, uid);
+    loadNoticeBadge(SUPABASE_URL, data.session.access_token, uid);
+    loadActiveStatus(SUPABASE_URL, data.session.access_token, uid);
     loadBalance(data.session.access_token, uid);
     loadFixture(data.session.access_token, uid);
     loadTraining(data.session.access_token, uid);
+    setupDrawer();
+    setupRefreshAndSignOut(supabase, uid);
+    registerServiceWorker();
   }
 
   async function loadBalance(accessToken, userId) {
@@ -221,77 +225,6 @@
   }
 
 
-  document.getElementById('menu-btn').addEventListener('click', () => {
-    document.getElementById('drawer-overlay').classList.add('open');
-    document.getElementById('header-brand').style.display = 'none';
-  });
-  document.getElementById('drawer-overlay').addEventListener('click', (e) => {
-    if (e.target.id === 'drawer-overlay') {
-      document.getElementById('drawer-overlay').classList.remove('open');
-      document.getElementById('header-brand').style.display = '';
-    }
-  });
-
-  async function loadNoticeBadge(accessToken, userId) {
-    try {
-      const body = await cachedFetch(userId, 'get-my-notice-count', async () => {
-        const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-notice-count`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || 'Could not load notice count');
-        return json;
-      });
-      const badge = document.getElementById('notices-badge');
-      if (body.unread > 0) {
-        badge.textContent = body.unread > 99 ? '99+' : String(body.unread);
-        badge.style.display = 'inline-flex';
-      } else {
-        badge.style.display = 'none';
-      }
-    } catch (err) {
-      // Non-critical - badge just doesn't show this load.
-    }
-  }
-
-  async function loadActiveStatus(accessToken, userId) {
-    try {
-      const body = await cachedFetch(userId, 'get-my-active-status', async () => {
-        const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-active-status`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || 'Could not load active status');
-        return json;
-      });
-      if (body.active) {
-        document.getElementById('loyalty-nav-item').style.display = 'flex';
-      }
-    } catch (err) {
-      // Non-critical - Loyalty tab just stays hidden this load.
-    }
-  }
-  document.getElementById('refresh-btn').addEventListener('click', () => {
-    clearUserCache(data.session.user.id);
-    window.location.reload();
-  });
-
-  document.getElementById('logout-btn').addEventListener('click', async () => {
-    clearUserCache(data.session.user.id);
-    // Defense-in-depth: also wipe the service worker's Cache Storage, in
-    // case any same-origin page asset was cached mid-session. Harmless -
-    // static files just get re-fetched fresh next load.
-    if ('caches' in window) {
-      const keys = await caches.keys();
-      await Promise.all(keys.map((k) => caches.delete(k)));
-    }
-    await supabase.auth.signOut();
-    window.location.href = 'index.html';
-  });
-
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-    navigator.serviceWorker.register('service-worker.js').catch(() => {});
-  }
 </script>
 
 </body>

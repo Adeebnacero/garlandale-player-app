@@ -1,7 +1,7 @@
 {
   "name": "Garlandale FC Player Portal",
   "short_name": "Garlandale FC",
-  "start_url": "./index.html",
+  "start_url": "./home.html",
   "display": "standalone",
   "background_color": "#241a45",
   "theme_color": "#241a45",
