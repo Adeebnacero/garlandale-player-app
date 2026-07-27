@@ -50,11 +50,19 @@
       <div id="balance-loading" style="color: var(--inkSoft); font-size: 14px;">Loading your balance…</div>
       <div id="balance-error" class="login-error" style="display:none;"></div>
       <div id="balance-content" style="display:none;">
-        <p class="balance-amount" id="balance-amount">—</p>
-        <span class="pill" id="balance-pill">—</span>
-        <p class="pill-reason" id="balance-reason"></p>
-        <button id="pay-now-btn" style="display:none; margin-top:14px; width:100%; padding:12px 0; border-radius:8px; border:none; background:var(--gold); color:var(--indigo); font-weight:700; font-size:14px; cursor:pointer; font-family:'Karla', sans-serif;">Pay now</button>
-        <p id="pay-error" class="login-error" style="display:none; margin-top:10px;"></p>
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+          <div style="flex:1; min-width:180px;">
+            <p class="balance-amount" id="balance-amount">—</p>
+            <span class="pill" id="balance-pill">—</span>
+            <p class="pill-reason" id="balance-reason"></p>
+            <button id="pay-now-btn" style="display:none; margin-top:14px; width:100%; padding:12px 0; border-radius:8px; border:none; background:var(--gold); color:var(--indigo); font-weight:700; font-size:14px; cursor:pointer; font-family:'Karla', sans-serif;">Pay now</button>
+            <p id="pay-error" class="login-error" style="display:none; margin-top:10px;"></p>
+          </div>
+          <div id="snapscan-qr-wrap" style="display:none; flex-shrink:0; text-align:center;">
+            <img id="snapscan-qr" alt="Scan to pay with SnapScan" style="width:110px; height:110px; border-radius:8px; border:1px solid var(--line);" />
+            <p style="margin:6px 0 0; font-size:11px; color: var(--inkSoft); font-weight:600;">Scan to pay</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -82,7 +90,7 @@
 </div>
 
 <script type="module">
-  import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+  import { SUPABASE_URL, SUPABASE_ANON_KEY, SNAPSCAN_SNAPCODE } from './config.js';
   import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
   import { cachedFetch } from './cache.js';
   import {
@@ -246,6 +254,17 @@
       payNowBtn.style.display = body.balance > 0 ? 'block' : 'none';
       payNowBtn.disabled = false;
       payNowBtn.textContent = 'Pay now';
+
+      const qrWrap = document.getElementById('snapscan-qr-wrap');
+      const qrImg = document.getElementById('snapscan-qr');
+      if (SNAPSCAN_SNAPCODE && body.balance > 0) {
+        const amountCents = Math.round(body.balance * 100);
+        qrImg.src = `https://pos.snapscan.io/qr/${encodeURIComponent(SNAPSCAN_SNAPCODE)}.svg` +
+          `?id=${encodeURIComponent(playerId)}&amount=${amountCents}&strict=true&snap_code_size=110`;
+        qrWrap.style.display = 'block';
+      } else {
+        qrWrap.style.display = 'none';
+      }
 
       balanceLoading.style.display = 'none';
       balanceContent.style.display = 'block';

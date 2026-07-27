@@ -10,3 +10,9 @@
 
 export const SUPABASE_URL = "https://hfpmlrrunlttiekfdjdz.supabase.co";
 export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhmcG1scnJ1bmx0dGlla2ZkamR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0ODU4NDksImV4cCI6MjA5OTA2MTg0OX0.OlRaxJV7taXrydBFUt1ryWGiOMw0mXGp4_tSVzngoec";
+
+// SnapScan QR code (Option A: display-only, no API key needed for this).
+// Set this to the club's SnapScan SnapCode, found in the SnapScan
+// merchant/business portal. Leave blank ("") to hide the QR code entirely
+// until it's set up.
+export const SNAPSCAN_SNAPCODE = "";
