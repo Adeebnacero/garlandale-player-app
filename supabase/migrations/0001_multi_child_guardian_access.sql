@@ -9,20 +9,12 @@
 -- existing auth model and one assumption below needs to match your schema.
 --
 -- ============================================================================
--- STEP 0 - CHECK BEFORE RUNNING
+-- STEP 0 - CHECK BEFORE RUNNING (RESOLVED)
 -- ============================================================================
--- This migration assumes your `players` table has a column called
--- `auth_user_id` that stores the linked Supabase Auth user's id (this is
--- the column current_player_id() presumably reads from today). Confirm the
--- real column name first:
---
---   select column_name from information_schema.columns
---   where table_name = 'players' and table_schema = 'public';
---
---   select pg_get_functiondef(oid) from pg_proc where proname = 'current_player_id';
---
--- If your column is named something else (e.g. user_id), replace
--- `auth_user_id` below with the real name before running STEP 2.
+-- Confirmed via supabase/functions/invite-player: the existing 1:1 column
+-- on players is called `user_id` (not `auth_user_id`), and is populated by
+-- that function's `.update({ user_id: userId })` call. The backfill below
+-- has been corrected to read from `players.user_id`.
 -- ============================================================================
 
 -- STEP 1 - the join table. One row per guardian-child relationship, so a
@@ -44,12 +36,12 @@ create policy "guardians can read their own links"
   on public.guardian_players for select
   using (auth_user_id = auth.uid());
 
--- STEP 2 - backfill from the existing 1:1 column.
--- ADJUST `auth_user_id` BELOW IF YOUR PLAYERS TABLE USES A DIFFERENT NAME.
+-- STEP 2 - backfill from the existing 1:1 column (players.user_id,
+-- confirmed via invite-player).
 insert into public.guardian_players (auth_user_id, player_id)
-select auth_user_id, id
+select user_id, id
 from public.players
-where auth_user_id is not null
+where user_id is not null
 on conflict do nothing;
 
 -- STEP 3 - the new lookup function every Edge Function / RLS policy should
