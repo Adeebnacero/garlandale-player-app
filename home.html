@@ -43,6 +43,8 @@
 
     <div class="child-tabs" id="child-tabs" style="display:none;"></div>
 
+    <p id="payment-status-banner" style="display:none; text-align:center; font-size:13px; padding:10px 14px; border-radius:8px; margin: 0 0 16px;"></p>
+
     <div class="card">
       <p class="card-label">Subscription balance</p>
       <div id="balance-loading" style="color: var(--inkSoft); font-size: 14px;">Loading your balance…</div>
@@ -51,6 +53,8 @@
         <p class="balance-amount" id="balance-amount">—</p>
         <span class="pill" id="balance-pill">—</span>
         <p class="pill-reason" id="balance-reason"></p>
+        <button id="pay-now-btn" style="display:none; margin-top:14px; width:100%; padding:12px 0; border-radius:8px; border:none; background:var(--gold); color:var(--indigo); font-weight:700; font-size:14px; cursor:pointer; font-family:'Karla', sans-serif;">Pay now</button>
+        <p id="pay-error" class="login-error" style="display:none; margin-top:10px;"></p>
       </div>
     </div>
 
@@ -90,12 +94,46 @@
   const loading = document.getElementById('loading');
   const app = document.getElementById('app');
 
+  // Populated once we have a session, so the "Pay now" button (defined
+  // further down, outside the per-load init block) always has the
+  // latest child/token to build a payment request for.
+  let currentAccessToken = null;
+  let currentUid = null;
+  let currentPlayerId = null;
+
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     loading.textContent = 'This app has no Supabase connection configured yet.';
     throw new Error('Missing Supabase config');
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // Returning from Yoco - show a status banner. The actual balance
+  // update comes from the yoco-webhook function, which can land a few
+  // seconds before or after this redirect - loadBalance below retries
+  // once after a short delay to catch it without requiring a manual
+  // "Refresh now".
+  const paymentParam = new URL(window.location.href).searchParams.get('payment');
+  if (paymentParam === 'success' || paymentParam === 'cancelled' || paymentParam === 'failed') {
+    const banner = document.getElementById('payment-status-banner');
+    if (paymentParam === 'success') {
+      banner.textContent = 'Payment received — your balance will update shortly.';
+      banner.style.background = 'var(--greenSoft)';
+      banner.style.color = 'var(--green)';
+    } else if (paymentParam === 'failed') {
+      banner.textContent = 'Payment failed — no amount was taken. Please try again.';
+      banner.style.background = 'var(--amberSoft)';
+      banner.style.color = 'var(--amber)';
+    } else {
+      banner.textContent = 'Payment was not completed.';
+      banner.style.background = 'var(--amberSoft)';
+      banner.style.color = 'var(--amber)';
+    }
+    banner.style.display = 'block';
+    // Clean the query param off the URL so a page refresh doesn't
+    // re-show the banner.
+    window.history.replaceState({}, '', window.location.pathname);
+  }
 
   const { data } = await supabase.auth.getSession();
   if (!data.session) {
@@ -105,6 +143,8 @@
     app.style.display = 'block';
     const uid = data.session.user.id;
     const accessToken = data.session.access_token;
+    currentAccessToken = accessToken;
+    currentUid = uid;
 
     setupDrawer();
     setupRefreshAndSignOut(supabase, uid);
@@ -126,11 +166,13 @@
     }
 
     let selectedPlayerId = resolveSelectedPlayer(uid, players);
+    currentPlayerId = selectedPlayerId;
 
     const childTabs = document.getElementById('child-tabs');
 
     function onSelectChild(newPlayerId) {
       selectedPlayerId = newPlayerId;
+      currentPlayerId = newPlayerId;
       setSelectedPlayer(uid, selectedPlayerId);
       renderChildSwitcher(childTabs, players, selectedPlayerId, onSelectChild);
       loadForChild(accessToken, uid, selectedPlayerId);
@@ -138,6 +180,10 @@
     renderChildSwitcher(childTabs, players, selectedPlayerId, onSelectChild);
 
     loadForChild(accessToken, uid, selectedPlayerId);
+
+    if (paymentParam === 'success') {
+      setTimeout(() => loadBalance(accessToken, uid, selectedPlayerId, { force: true }), 4000);
+    }
   }
 
   function loadForChild(accessToken, uid, playerId) {
@@ -146,17 +192,23 @@
     loadFixture(accessToken, uid, playerId);
   }
 
-  async function loadBalance(accessToken, userId, playerId) {
+  async function loadBalance(accessToken, userId, playerId, { force = false } = {}) {
     const balanceLoading = document.getElementById('balance-loading');
     const balanceError = document.getElementById('balance-error');
     const balanceContent = document.getElementById('balance-content');
+    const payNowBtn = document.getElementById('pay-now-btn');
+    const payError = document.getElementById('pay-error');
 
     // Reset to loading state - relevant when switching between children,
     // so the previous child's figures don't linger while the new ones load.
-    balanceLoading.style.display = 'block';
-    balanceError.classList.remove('visible');
-    balanceError.style.display = 'none';
-    balanceContent.style.display = 'none';
+    // Skipped for a forced background refresh (post-payment retry) so the
+    // guardian doesn't see the card flicker back to "Loading…" under them.
+    if (!force) {
+      balanceLoading.style.display = 'block';
+      balanceError.classList.remove('visible');
+      balanceError.style.display = 'none';
+      balanceContent.style.display = 'none';
+    }
 
     try {
       const body = await cachedFetch(userId, `get-my-balance:${playerId}`, async () => {
@@ -167,7 +219,7 @@
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || 'Could not load balance');
         return json;
-      });
+      }, { force });
 
       const money = (n) =>
         'R' + Math.abs(n).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -189,13 +241,24 @@
       pill.style.color = style.fg;
       document.getElementById('balance-reason').textContent = body.reason;
 
+      payError.style.display = 'none';
+      payError.classList.remove('visible');
+      payNowBtn.style.display = body.balance > 0 ? 'block' : 'none';
+      payNowBtn.disabled = false;
+      payNowBtn.textContent = 'Pay now';
+
       balanceLoading.style.display = 'none';
       balanceContent.style.display = 'block';
     } catch (err) {
-      balanceLoading.style.display = 'none';
-      balanceError.textContent = err.message;
-      balanceError.classList.add('visible');
-      balanceError.style.display = 'block';
+      if (!force) {
+        balanceLoading.style.display = 'none';
+        balanceError.textContent = err.message;
+        balanceError.classList.add('visible');
+        balanceError.style.display = 'block';
+      }
+      // A forced background refresh failing quietly is fine - the
+      // guardian still has the "Refresh now" option, and the next
+      // scheduled cache window will pick it up regardless.
     }
   }
 
@@ -274,6 +337,41 @@
       fixtureNone.style.display = 'block';
     }
   }
+
+  // Redirects to the hosted Yoco Checkout page returned by
+  // create-yoco-checkout - this app never touches card details itself.
+  document.getElementById('pay-now-btn').addEventListener('click', async () => {
+    const payNowBtn = document.getElementById('pay-now-btn');
+    const payError = document.getElementById('pay-error');
+    payError.style.display = 'none';
+    payError.classList.remove('visible');
+
+    if (!currentAccessToken || !currentUid || !currentPlayerId) return;
+
+    payNowBtn.disabled = true;
+    payNowBtn.textContent = 'Redirecting to Yoco…';
+
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/create-yoco-checkout`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${currentAccessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ player_id: currentPlayerId }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Could not start payment');
+
+      window.location.href = body.redirectUrl;
+    } catch (err) {
+      payNowBtn.disabled = false;
+      payNowBtn.textContent = 'Pay now';
+      payError.textContent = err.message;
+      payError.classList.add('visible');
+      payError.style.display = 'block';
+    }
+  });
 
 
 </script>
