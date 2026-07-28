@@ -152,13 +152,15 @@
     }
   }
 
-  // Re-renders the Pay now button, its label, validation message, and the
-  // SnapScan QR - called whenever the balance reloads or the custom
-  // amount input changes.
+  // Re-renders the Pay now button, its label, validation message, the
+  // "Edit amount"/"Make a payment" link wording, and the SnapScan QR -
+  // called whenever the balance reloads or the custom amount input changes.
   function refreshPayUI() {
     const payNowBtn = document.getElementById('pay-now-btn');
     const errEl = document.getElementById('custom-amount-error');
+    const editLink = document.getElementById('edit-amount-link');
     const amount = getEffectivePayAmount();
+    const hasBalanceDue = currentBalanceDue > 0;
 
     if (usingCustomAmount) {
       const err = validateCustomAmount(amount);
@@ -166,10 +168,18 @@
       errEl.style.display = err ? 'block' : 'none';
       payNowBtn.style.display = 'block';
       payNowBtn.disabled = !!err;
+      // "Edit amount" flow is reversible (falls back to the real balance
+      // due); "Make a payment" flow has no balance to fall back to, so it
+      // just collapses the input again.
+      editLink.textContent = hasBalanceDue ? 'Use balance due' : 'Cancel';
     } else {
       errEl.style.display = 'none';
-      payNowBtn.style.display = currentBalanceDue > 0 ? 'block' : 'none';
+      payNowBtn.style.display = hasBalanceDue ? 'block' : 'none';
       payNowBtn.disabled = false;
+      // "Edit amount" implies there's an existing amount to edit; when
+      // there's nothing due, that wording is misleading - this is a
+      // voluntary payment instead (e.g. paying ahead), not an edit.
+      editLink.textContent = hasBalanceDue ? 'Edit amount' : 'Make a payment';
     }
 
     payNowBtn.textContent = amount >= 2 ? `Pay R${amount.toFixed(2)}` : 'Pay now';
@@ -309,7 +319,16 @@
       };
       const style = pillStyles[body.status] || pillStyles.amber;
 
-      document.getElementById('balance-amount').textContent = money(body.balance);
+      const balanceAmountEl = document.getElementById('balance-amount');
+      if (body.balance < 0) {
+        // Overpaid / paid ahead - show clearly as a credit rather than a
+        // plain amount, which would otherwise look identical to money owed.
+        balanceAmountEl.textContent = 'Credit: ' + money(body.balance);
+        balanceAmountEl.style.color = 'var(--green)';
+      } else {
+        balanceAmountEl.textContent = money(body.balance);
+        balanceAmountEl.style.color = 'var(--ink)';
+      }
       const pill = document.getElementById('balance-pill');
       pill.textContent = style.label;
       pill.style.background = style.bg;
@@ -427,15 +446,12 @@
     usingCustomAmount = !usingCustomAmount;
     const row = document.getElementById('custom-amount-row');
     const input = document.getElementById('custom-amount');
-    const link = document.getElementById('edit-amount-link');
     if (usingCustomAmount) {
       row.style.display = 'block';
       input.value = currentBalanceDue > 0 ? currentBalanceDue.toFixed(2) : '';
-      link.textContent = 'Use balance due';
       input.focus();
     } else {
       row.style.display = 'none';
-      link.textContent = 'Edit amount';
     }
     refreshPayUI();
   });
