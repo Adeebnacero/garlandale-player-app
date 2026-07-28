@@ -145,24 +145,52 @@ Deno.serve(async (req) => {
 
   const finance = playerFinance(mappedPlayer, mappedTiers);
 
-  if (finance.balance <= 0) {
-    return new Response(JSON.stringify({ error: "No amount is currently due." }), {
-      status: 400,
-      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-    });
-  }
+  // Optional guardian-edited amount (see home.html's "Edit amount"
+  // toggle) - lets someone pay a partial amount or pay ahead, instead of
+  // always paying the exact computed balance due. Falls back to the
+  // computed balance below when omitted, so older cached clients that
+  // never send `amount` keep working exactly as before.
+  const requestedAmount = typeof body.amount === "number" && Number.isFinite(body.amount)
+    ? body.amount
+    : null;
 
-  // Yoco won't accept payments under R2.
-  if (finance.balance < 2) {
-    return new Response(
-      JSON.stringify({ error: "The amount due is below the minimum payment of R2." }),
-      { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-    );
+  let payAmount: number;
+  if (requestedAmount !== null) {
+    // Never trust the client's own validation - re-check the same rules
+    // here regardless of what home.html already checked.
+    if (requestedAmount < 2) {
+      return new Response(
+        JSON.stringify({ error: "The minimum payment is R2." }),
+        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+    if (requestedAmount > 10000) {
+      return new Response(
+        JSON.stringify({ error: "For amounts over R10,000, please contact the club directly." }),
+        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+    payAmount = requestedAmount;
+  } else {
+    if (finance.balance <= 0) {
+      return new Response(JSON.stringify({ error: "No amount is currently due." }), {
+        status: 400,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+    // Yoco won't accept payments under R2.
+    if (finance.balance < 2) {
+      return new Response(
+        JSON.stringify({ error: "The amount due is below the minimum payment of R2." }),
+        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+    payAmount = finance.balance;
   }
 
   // Amounts are in cents for Yoco. Round to the nearest cent to avoid
   // floating point drift (e.g. 350.1 * 100 !== 35010 in float math).
-  const amountCents = Math.round(finance.balance * 100);
+  const amountCents = Math.round(payAmount * 100);
 
   // metadata.playerId carries the player id through Yoco and back via the
   // webhook - this is how yoco-webhook knows which player's payments row

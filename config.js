@@ -15,4 +15,4 @@ export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // Set this to the club's SnapScan SnapCode, found in the SnapScan
 // merchant/business portal. Leave blank ("") to hide the QR code entirely
 // until it's set up.
-export const SNAPSCAN_SNAPCODE = "garlandalefc";
+export const SNAPSCAN_SNAPCODE = "";

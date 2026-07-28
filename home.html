@@ -55,6 +55,13 @@
             <p class="balance-amount" id="balance-amount">—</p>
             <span class="pill" id="balance-pill">—</span>
             <p class="pill-reason" id="balance-reason"></p>
+            <p id="edit-amount-link" style="margin:8px 0 0; font-size:12px; color: var(--indigo); text-decoration:underline; cursor:pointer;">Edit amount</p>
+            <div id="custom-amount-row" style="display:none; margin-top:10px;">
+              <label for="custom-amount" style="display:block; font-size:12px; color: var(--inkSoft); margin-bottom:4px;">Amount to pay (R)</label>
+              <input id="custom-amount" type="number" min="2" max="10000" step="0.01" inputmode="decimal"
+                style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--line); font-size:14px; font-family:'Karla', sans-serif; box-sizing:border-box;" />
+              <p id="custom-amount-error" style="display:none; color: var(--danger); font-size:12px; margin:6px 0 0;"></p>
+            </div>
             <button id="pay-now-btn" style="display:none; margin-top:14px; width:100%; padding:12px 0; border-radius:8px; border:none; background:var(--gold); color:var(--indigo); font-weight:700; font-size:14px; cursor:pointer; font-family:'Karla', sans-serif;">Pay now</button>
             <p id="pay-error" class="login-error" style="display:none; margin-top:10px;"></p>
           </div>
@@ -108,6 +115,66 @@
   let currentAccessToken = null;
   let currentUid = null;
   let currentPlayerId = null;
+  // Editable payment amount (SnapScan QR + Yoco checkout both read from
+  // this). Defaults to the actual balance due; "Edit amount" lets a
+  // guardian override it (e.g. to pay ahead, or pay a partial amount).
+  let currentBalanceDue = 0;
+  let usingCustomAmount = false;
+
+  function getEffectivePayAmount() {
+    if (usingCustomAmount) {
+      const v = parseFloat(document.getElementById('custom-amount').value);
+      return isNaN(v) ? 0 : v;
+    }
+    return currentBalanceDue;
+  }
+
+  // Server re-validates this independently in create-yoco-checkout -
+  // this is just so the guardian gets an immediate, friendly message
+  // instead of a round-trip failure.
+  function validateCustomAmount(v) {
+    if (isNaN(v) || v <= 0) return 'Enter an amount';
+    if (v < 2) return 'Minimum payment is R2';
+    if (v > 10000) return 'For amounts over R10,000, please contact the club directly';
+    return null;
+  }
+
+  function updateSnapscanQr(amount) {
+    const qrWrap = document.getElementById('snapscan-qr-wrap');
+    const qrImg = document.getElementById('snapscan-qr');
+    if (SNAPSCAN_SNAPCODE && amount >= 2 && currentPlayerId) {
+      const amountCents = Math.round(amount * 100);
+      qrImg.src = `https://pos.snapscan.io/qr/${encodeURIComponent(SNAPSCAN_SNAPCODE)}.svg` +
+        `?id=${encodeURIComponent(currentPlayerId)}&amount=${amountCents}&strict=true&snap_code_size=110`;
+      qrWrap.style.display = 'block';
+    } else {
+      qrWrap.style.display = 'none';
+    }
+  }
+
+  // Re-renders the Pay now button, its label, validation message, and the
+  // SnapScan QR - called whenever the balance reloads or the custom
+  // amount input changes.
+  function refreshPayUI() {
+    const payNowBtn = document.getElementById('pay-now-btn');
+    const errEl = document.getElementById('custom-amount-error');
+    const amount = getEffectivePayAmount();
+
+    if (usingCustomAmount) {
+      const err = validateCustomAmount(amount);
+      errEl.textContent = err || '';
+      errEl.style.display = err ? 'block' : 'none';
+      payNowBtn.style.display = 'block';
+      payNowBtn.disabled = !!err;
+    } else {
+      errEl.style.display = 'none';
+      payNowBtn.style.display = currentBalanceDue > 0 ? 'block' : 'none';
+      payNowBtn.disabled = false;
+    }
+
+    payNowBtn.textContent = amount >= 2 ? `Pay R${amount.toFixed(2)}` : 'Pay now';
+    updateSnapscanQr(amount);
+  }
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     loading.textContent = 'This app has no Supabase connection configured yet.';
@@ -249,22 +316,18 @@
       pill.style.color = style.fg;
       document.getElementById('balance-reason').textContent = body.reason;
 
+      currentBalanceDue = body.balance;
+      // A background refresh (post-payment retry) shouldn't yank a
+      // guardian's in-progress custom amount edit out from under them.
+      if (!force) {
+        usingCustomAmount = false;
+        document.getElementById('custom-amount-row').style.display = 'none';
+        document.getElementById('custom-amount').value = body.balance > 0 ? body.balance.toFixed(2) : '';
+      }
+
       payError.style.display = 'none';
       payError.classList.remove('visible');
-      payNowBtn.style.display = body.balance > 0 ? 'block' : 'none';
-      payNowBtn.disabled = false;
-      payNowBtn.textContent = 'Pay now';
-
-      const qrWrap = document.getElementById('snapscan-qr-wrap');
-      const qrImg = document.getElementById('snapscan-qr');
-      if (SNAPSCAN_SNAPCODE && body.balance > 0) {
-        const amountCents = Math.round(body.balance * 100);
-        qrImg.src = `https://pos.snapscan.io/qr/${encodeURIComponent(SNAPSCAN_SNAPCODE)}.svg` +
-          `?id=${encodeURIComponent(playerId)}&amount=${amountCents}&strict=true&snap_code_size=110`;
-        qrWrap.style.display = 'block';
-      } else {
-        qrWrap.style.display = 'none';
-      }
+      refreshPayUI();
 
       balanceLoading.style.display = 'none';
       balanceContent.style.display = 'block';
@@ -357,6 +420,27 @@
     }
   }
 
+  // "Edit amount" toggle - reveals a free-text amount field for paying a
+  // partial amount or paying ahead, instead of always paying the exact
+  // balance due.
+  document.getElementById('edit-amount-link').addEventListener('click', () => {
+    usingCustomAmount = !usingCustomAmount;
+    const row = document.getElementById('custom-amount-row');
+    const input = document.getElementById('custom-amount');
+    const link = document.getElementById('edit-amount-link');
+    if (usingCustomAmount) {
+      row.style.display = 'block';
+      input.value = currentBalanceDue > 0 ? currentBalanceDue.toFixed(2) : '';
+      link.textContent = 'Use balance due';
+      input.focus();
+    } else {
+      row.style.display = 'none';
+      link.textContent = 'Edit amount';
+    }
+    refreshPayUI();
+  });
+  document.getElementById('custom-amount').addEventListener('input', refreshPayUI);
+
   // Redirects to the hosted Yoco Checkout page returned by
   // create-yoco-checkout - this app never touches card details itself.
   document.getElementById('pay-now-btn').addEventListener('click', async () => {
@@ -367,6 +451,18 @@
 
     if (!currentAccessToken || !currentUid || !currentPlayerId) return;
 
+    const amount = getEffectivePayAmount();
+    if (usingCustomAmount) {
+      const err = validateCustomAmount(amount);
+      if (err) {
+        payError.textContent = err;
+        payError.classList.add('visible');
+        payError.style.display = 'block';
+        return;
+      }
+    }
+
+    const originalLabel = payNowBtn.textContent;
     payNowBtn.disabled = true;
     payNowBtn.textContent = 'Redirecting to Yoco…';
 
@@ -377,7 +473,12 @@
           Authorization: `Bearer ${currentAccessToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ player_id: currentPlayerId }),
+        // amount is only sent when the guardian has actively edited it -
+        // omitting it lets create-yoco-checkout fall back to the
+        // server-computed balance due, same as before.
+        body: JSON.stringify(
+          usingCustomAmount ? { player_id: currentPlayerId, amount } : { player_id: currentPlayerId }
+        ),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'Could not start payment');
@@ -385,7 +486,7 @@
       window.location.href = body.redirectUrl;
     } catch (err) {
       payNowBtn.disabled = false;
-      payNowBtn.textContent = 'Pay now';
+      payNowBtn.textContent = originalLabel;
       payError.textContent = err.message;
       payError.classList.add('visible');
       payError.style.display = 'block';
