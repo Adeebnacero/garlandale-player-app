@@ -25,13 +25,11 @@
 //   supabase functions deploy invite-player
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { buildCorsHeaders } from "../_shared/cors.js";
 
 Deno.serve(async (req) => {
+  const corsHeaders = buildCorsHeaders(req, "POST, OPTIONS");
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -103,7 +101,8 @@ Deno.serve(async (req) => {
       const isAlreadyRegistered = (inviteErr.message || "").toLowerCase().includes("already registered") ||
         (inviteErr.message || "").toLowerCase().includes("already been registered");
       if (!isAlreadyRegistered) {
-        return new Response(JSON.stringify({ error: inviteErr.message }), {
+        console.error("invite-player: inviteUserByEmail failed", inviteErr);
+        return new Response(JSON.stringify({ error: "Could not send invite - please try again." }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -137,7 +136,8 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message || "Unknown error inviting player." }), {
+    console.error("invite-player: unexpected error", err);
+    return new Response(JSON.stringify({ error: "Could not send invite - please try again." }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

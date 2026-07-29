@@ -23,6 +23,7 @@
 // the way PayFast's notify_url was.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildCorsHeaders } from "../_shared/cors.js";
 import { playerFinance } from "../_shared/billing.js";
 import { checkRateLimit } from "../_shared/rate-limit.js";
 import { resolveRequestedPlayerId } from "../_shared/resolve-player.js";
@@ -35,13 +36,9 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const YOCO_SECRET_KEY = Deno.env.get("YOCO_SECRET_KEY") ?? "";
 const APP_URL = Deno.env.get("APP_URL") ?? "";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
 Deno.serve(async (req) => {
+  const CORS_HEADERS = buildCorsHeaders(req, "POST, OPTIONS");
+
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: CORS_HEADERS });
   }

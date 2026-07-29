@@ -26,6 +26,7 @@
 // balance math here, only adapt DB rows into the shape it expects.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildCorsHeaders } from "../_shared/cors.js";
 import { playerFinance, complianceStatus, complianceReason } from "../_shared/billing.js";
 import { checkRateLimit } from "../_shared/rate-limit.js";
 import { resolveRequestedPlayerId } from "../_shared/resolve-player.js";
@@ -36,16 +37,14 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 // Browser-facing functions need explicit CORS headers, or the browser
 // blocks the response before your code ever sees it (shows up client-side
-// as a generic "Failed to fetch", no other detail). "*" is fine here since
-// this endpoint is already gated by requiring a valid player JWT - the
-// origin isn't doing any of the access control.
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-};
-
+// as a generic "Failed to fetch", no other detail). The allowed origin is
+// restricted to this app's own domains (see _shared/cors.js) rather than
+// "*" - the JWT check below still does the real access control, but a
+// wildcard origin would let any website relay a stolen/leaked player
+// token, so it's worth locking down as defense-in-depth.
 Deno.serve(async (req) => {
+  const CORS_HEADERS = buildCorsHeaders(req, "GET, OPTIONS");
+
   // Preflight: the browser sends this automatically before the real
   // request whenever an Authorization header is involved. Must return
   // 200 + the CORS headers with no body, or the real request never fires.

@@ -25,18 +25,13 @@
 // loudly, not masking.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildCorsHeaders } from "../_shared/cors.js";
 import { checkRateLimit } from "../_shared/rate-limit.js";
 import { resolveRequestedPlayerId } from "../_shared/resolve-player.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 
 const EDITABLE_FIELDS = ["phone", "email", "guardian_name", "guardian_phone"];
 
@@ -58,6 +53,8 @@ const FIELD_RULES: Record<string, { maxLength: number; pattern?: RegExp; label: 
 };
 
 Deno.serve(async (req) => {
+  const CORS_HEADERS = buildCorsHeaders(req, "POST, OPTIONS");
+
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: CORS_HEADERS });
   }
@@ -182,7 +179,8 @@ Deno.serve(async (req) => {
     .single();
 
   if (updateErr) {
-    return new Response(JSON.stringify({ error: updateErr.message }), {
+    console.error("update-my-profile: database update failed", updateErr);
+    return new Response(JSON.stringify({ error: "Could not save changes - please try again." }), {
       status: 400,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
     });

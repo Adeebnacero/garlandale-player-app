@@ -14,6 +14,7 @@
 // them, matching the combined badge logic exactly.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildCorsHeaders } from "../_shared/cors.js";
 import { checkRateLimit } from "../_shared/rate-limit.js";
 import { computeAgeGroup } from "../_shared/billing.js";
 
@@ -21,13 +22,9 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-};
-
 Deno.serve(async (req) => {
+  const CORS_HEADERS = buildCorsHeaders(req, "GET, OPTIONS");
+
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: CORS_HEADERS });
   }
@@ -92,7 +89,8 @@ Deno.serve(async (req) => {
     .limit(50); // fetch generously; age-group filtering below trims to what's actually relevant
 
   if (noticesErr) {
-    return new Response(JSON.stringify({ error: noticesErr.message }), {
+    console.error("get-my-notices: failed to load notices", noticesErr);
+    return new Response(JSON.stringify({ error: "Could not load notices - please try again." }), {
       status: 400,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
     });

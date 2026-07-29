@@ -15,6 +15,7 @@
 // count it once, not twice).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildCorsHeaders } from "../_shared/cors.js";
 import { checkRateLimit } from "../_shared/rate-limit.js";
 import { computeAgeGroup } from "../_shared/billing.js";
 
@@ -22,13 +23,9 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-};
-
 Deno.serve(async (req) => {
+  const CORS_HEADERS = buildCorsHeaders(req, "GET, OPTIONS");
+
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: CORS_HEADERS });
   }
