@@ -26,10 +26,6 @@
     <h1 class="hero-name" id="player-name">&mdash;</h1>
     <div class="stat-caps">
       <div class="stat-cap">
-        <span class="stat-cap-label">Balance</span>
-        <p class="stat-cap-value" id="hero-balance-amount">&mdash;</p>
-      </div>
-      <div class="stat-cap">
         <span class="stat-cap-label">Next match</span>
         <p class="stat-cap-value" id="hero-next-fixture">&mdash;</p>
       </div>
@@ -373,17 +369,14 @@
       const style = pillStyles[body.status] || pillStyles.amber;
 
       const balanceAmountEl = document.getElementById('balance-amount');
-      const heroBalanceEl = document.getElementById('hero-balance-amount');
       if (body.balance < 0) {
         // Overpaid / paid ahead - show clearly as a credit rather than a
         // plain amount, which would otherwise look identical to money owed.
         balanceAmountEl.textContent = 'Credit: ' + money(body.balance);
         balanceAmountEl.style.color = 'var(--green)';
-        if (heroBalanceEl) heroBalanceEl.textContent = 'Credit ' + money(body.balance);
       } else {
         balanceAmountEl.textContent = money(body.balance);
         balanceAmountEl.style.color = 'var(--ink)';
-        if (heroBalanceEl) heroBalanceEl.textContent = money(body.balance);
       }
       const pill = document.getElementById('balance-pill');
       pill.textContent = style.label;
