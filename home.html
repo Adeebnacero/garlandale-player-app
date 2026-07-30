@@ -49,7 +49,8 @@
     <p id="payment-status-banner" style="display:none; text-align:center; font-size:13px; padding:10px 14px; border-radius:8px; margin: 0 0 16px;"></p>
 
     <div class="tile-grid">
-      <a class="tile" href="fixtures.html">
+      <a class="tile" href="fixtures.html" id="fixtures-tile">
+        <span class="tile-badge tile-badge-dot" id="fixtures-badge" style="display:none;"></span>
         <span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg></span>
         <span class="tile-label">Fixtures</span>
       </a>
@@ -62,7 +63,7 @@
         <span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></span>
         <span class="tile-label">Profile</span>
       </a>
-      <a class="tile tile-accent" href="loyalty.html" id="loyalty-nav-item" style="display:none;">
+      <a class="tile" href="loyalty.html" id="loyalty-nav-item" style="display:none;">
         <span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-4-6.3 4 1.7-7-5.4-4.7 7.1-.6z"/></svg></span>
         <span class="tile-label">Loyalty</span>
       </a>
@@ -443,10 +444,14 @@
     const fixtureLoading = document.getElementById('fixture-loading');
     const fixtureNone = document.getElementById('fixture-none');
     const fixtureContent = document.getElementById('fixture-content');
+    const fixturesTile = document.getElementById('fixtures-tile');
+    const fixturesBadge = document.getElementById('fixtures-badge');
 
     fixtureLoading.style.display = 'block';
     fixtureNone.style.display = 'none';
     fixtureContent.style.display = 'none';
+    if (fixturesTile) fixturesTile.classList.remove('tile-accent');
+    if (fixturesBadge) fixturesBadge.style.display = 'none';
 
     try {
       const body = await cachedFetch(userId, `get-my-fixtures:${playerId}`, async () => {
@@ -490,6 +495,15 @@
         if (f.home_away === 'H') fixtureCard.classList.add('is-home');
         else if (f.home_away === 'A') fixtureCard.classList.add('is-away');
       }
+
+      // Highlight the Fixtures tile when the next match is imminent - a
+      // simple stand-in for "something new" until there's a real
+      // last-viewed/updated-at signal from the backend to key off instead.
+      const matchDate = new Date(f.match_date + 'T00:00:00');
+      const daysUntil = Math.ceil((matchDate - new Date()) / (1000 * 60 * 60 * 24));
+      const isSoon = daysUntil >= 0 && daysUntil <= 2;
+      if (fixturesTile) fixturesTile.classList.toggle('tile-accent', isSoon);
+      if (fixturesBadge) fixturesBadge.style.display = isSoon ? 'inline-flex' : 'none';
 
       fixtureContent.style.display = 'block';
     } catch (err) {

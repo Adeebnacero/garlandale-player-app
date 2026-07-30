@@ -88,6 +88,11 @@ export async function loadNoticeBadge(SUPABASE_URL, accessToken, userId) {
       } else {
         badge.style.display = 'none';
       }
+      // On the home page the badge sits inside a quick-action tile - highlight
+      // the whole tile (not just the badge) when there's something unread.
+      // No-ops elsewhere (e.g. the bottom nav dot has no .tile ancestor).
+      const tile = badge.closest('.tile');
+      if (tile) tile.classList.toggle('tile-accent', body.unread > 0);
     });
   } catch (err) {
     // Non-critical - badge just doesn't show this load.
