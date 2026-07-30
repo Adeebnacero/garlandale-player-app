@@ -286,10 +286,13 @@ header.hero-header {
   align-items: center;
   justify-content: center;
 }
-.hero-header .menu-btn {
+.hero-icons {
   position: absolute;
-  top: 14px;
-  right: 16px;
+  top: 12px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 .hero-brand {
   display: flex;
@@ -317,6 +320,20 @@ header.hero-header {
   gap: 8px;
   justify-content: center;
 }
+.game-day-banner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: var(--gold);
+  color: var(--indigo);
+  border-radius: 12px;
+  padding: 10px 16px;
+  margin: 0 0 14px;
+  font-size: 13.5px;
+  font-weight: 700;
+  text-align: center;
+}
+.game-day-banner strong { font-family: 'JetBrains Mono', monospace; }
 .stat-cap {
   min-width: 108px;
   background: rgba(246,242,233,0.1);
