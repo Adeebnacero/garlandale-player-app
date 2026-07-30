@@ -78,14 +78,17 @@ export async function loadNoticeBadge(SUPABASE_URL, accessToken, userId) {
       if (!res.ok) throw new Error(json.error || 'Could not load notice count');
       return json;
     });
-    const badge = document.getElementById('notices-badge');
-    if (!badge) return;
-    if (body.unread > 0) {
-      badge.textContent = body.unread > 99 ? '99+' : String(body.unread);
-      badge.style.display = 'inline-flex';
-    } else {
-      badge.style.display = 'none';
-    }
+    const badges = document.querySelectorAll('#notices-badge, [data-notice-badge]');
+    if (!badges.length) return;
+    const label = body.unread > 99 ? '99+' : String(body.unread);
+    badges.forEach((badge) => {
+      if (body.unread > 0) {
+        if (!badge.hasAttribute('data-notice-badge')) badge.textContent = label;
+        badge.style.display = 'inline-flex';
+      } else {
+        badge.style.display = 'none';
+      }
+    });
   } catch (err) {
     // Non-critical - badge just doesn't show this load.
   }
@@ -106,8 +109,10 @@ export async function loadActiveStatus(SUPABASE_URL, accessToken, userId, player
       if (!res.ok) throw new Error(json.error || 'Could not load active status');
       return json;
     });
-    const el = document.getElementById('loyalty-nav-item');
-    if (el) el.style.display = body.active ? 'flex' : 'none';
+    const els = document.querySelectorAll('#loyalty-nav-item, [data-loyalty-nav]');
+    els.forEach((el) => {
+      el.style.display = body.active ? (el.tagName === 'A' && el.classList.contains('tile') ? 'block' : 'flex') : 'none';
+    });
   } catch (err) {
     // Non-critical - Loyalty tab just stays hidden this load.
   }
