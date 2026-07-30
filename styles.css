@@ -272,6 +272,57 @@ body:not(.login-page):not(.accept-invite-page) > main {
   margin-left: auto;
 }
 
+/* ---- Drill-down pages (e.g. Payment history) ---- */
+.drilldown-header {
+  background: var(--indigo);
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.back-btn {
+  color: var(--gold);
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
+.back-btn svg { width: 22px; height: 22px; }
+.drilldown-title {
+  font-family: 'Anton', sans-serif;
+  color: var(--paper);
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.payment-month-heading {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--inkSoft);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 20px 0 8px;
+}
+.payment-month-heading:first-child { margin-top: 4px; }
+.payment-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+}
+.payment-amount {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+}
+.payment-meta {
+  font-size: 12px;
+  color: var(--inkSoft);
+  margin: 3px 0 0;
+}
+
 /* ---- Hero header (home page redesign) ---- */
 header.hero-header {
   background: var(--indigo);
