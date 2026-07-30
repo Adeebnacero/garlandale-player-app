@@ -176,14 +176,19 @@
       const timeFmt = (t) => (t ? t.slice(0, 5) : '');
 
       fixturesList.innerHTML = body.fixtures
-        .map((f) => `
-          <div class="card">
+        .map((f, i) => {
+          const isNext = i === 0;
+          const homeAwayClass = f.home_away === 'H' ? ' is-home' : f.home_away === 'A' ? ' is-away' : '';
+          return `
+          <div class="card fixture-card${isNext ? ' next-fixture' : ''}${homeAwayClass}">
+            ${isNext ? '<span class="next-fixture-badge">Next fixture</span>' : ''}
             <p class="fixture-teams">Garlandale FC vs ${escapeHtml(f.opponent || 'TBC')}</p>
             <p class="fixture-when" style="margin-top:4px;">Venue: ${escapeHtml(f.venue || 'TBC')}${f.home_away ? ` (${f.home_away === 'H' ? 'Home' : 'Away'})` : ''}</p>
-            <p class="fixture-when" style="margin-top:4px;">Time: ${dateFmt(f.match_date)}${f.kickoff_time ? ' · ' + timeFmt(f.kickoff_time) : ''}</p>
+            <p class="fixture-when${isNext ? ' fixture-when-strong' : ''}" style="margin-top:4px;">Time: ${dateFmt(f.match_date)}${f.kickoff_time ? ' · ' + timeFmt(f.kickoff_time) : ''}</p>
             <p class="fixture-when" style="margin-top:8px; font-style: italic;">Please report 1 hour before kick-off</p>
           </div>
-        `)
+        `;
+        })
         .join('');
     } catch (err) {
       fixturesLoading.style.display = 'none';

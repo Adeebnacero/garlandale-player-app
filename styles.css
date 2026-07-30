@@ -406,6 +406,41 @@ header.hero-header {
 #fixture-card.is-home::before { background: var(--green); }
 #fixture-card.is-away::before { background: var(--danger); }
 
+/* ---- Fixtures list: highlight the next upcoming fixture ---- */
+.fixture-card { position: relative; }
+.fixture-card.is-home,
+.fixture-card.is-away { padding-left: 24px; }
+.fixture-card.is-home::before,
+.fixture-card.is-away::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20px;
+  bottom: 20px;
+  width: 5px;
+  border-radius: 0 4px 4px 0;
+}
+.fixture-card.is-home::before { background: var(--green); }
+.fixture-card.is-away::before { background: var(--danger); }
+.fixture-card.next-fixture {
+  border: 2px solid var(--gold);
+  background: var(--paperDim);
+  box-shadow: 0 4px 14px rgba(28,23,48,0.08);
+}
+.next-fixture-badge {
+  display: inline-block;
+  background: var(--gold);
+  color: var(--indigo);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  margin-bottom: 8px;
+}
+.fixture-when-strong { font-weight: 700; color: var(--ink); }
+
 /* ---- Bottom navigation bar ---- */
 .has-bottom-nav main { padding-bottom: 96px; }
 .bottom-nav {
