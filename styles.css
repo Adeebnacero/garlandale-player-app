@@ -1,24 +1,53 @@
-@import url('https://fonts.googleapis.com/css2?family=Anton&family=Karla:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Karla:wght@400;500;600;700&display=swap');
 
+/* =========================================================
+   Garlandale FC — Design Tokens
+   Central theme file: colours, type, radius, shadow, spacing,
+   motion. Keep all new styling additions referencing these
+   tokens so the app stays visually consistent as it grows.
+   ========================================================= */
 :root {
-  --indigo: #241a45;
-  --indigoSoft: #342763;
+  /* --- Brand colours --- */
+  --indigo: #241B4B;       /* primary */
+  --indigoSoft: #30245D;   /* secondary purple */
   --green: #1e7a41;
-  --greenSoft: #e6f3ea;
-  --gold: #e8ac2e;
-  --goldDeep: #c98a12;
-  --paper: #f6f2e9;
-  --paperDim: #efe9da;
-  --ink: #1c1730;
-  --inkSoft: #5b5470;
-  --danger: #c1443c;
-  --dangerSoft: #fbe9e7;
-  --amber: #d68f1e;
-  --amberSoft: #fbf1de;
-  --line: #e2dbc9;
+  --greenSoft: #DDF4DF;    /* success */
+  --gold: #D4A017;         /* gold accent */
+  --goldDeep: #B8890F;
+  --paper: #F7F5EF;        /* app background (cream, never pure white) */
+  --paperDim: #EFEBDF;
+  --card: #FCFCFC;         /* card surface */
+  --ink: #1E1E1E;          /* primary text */
+  --inkSoft: #6E6E6E;      /* secondary text */
+  --danger: #b3453e;
+  --dangerSoft: #FCE4E4;   /* error */
+  --amber: #b3790f;
+  --amberSoft: #f7ecd6;
+  --line: #E7E2D3;
+
+  /* --- Typography --- */
+  --font-display: 'Anton', sans-serif;   /* player name / page titles only */
+  --font-sans: 'Karla', sans-serif;      /* everything else */
+
+  /* --- Radius system --- */
+  --radius-sm: 12px;
+  --radius-btn: 16px;
+  --radius-card: 20px;
+  --radius-hero: 24px;
+
+  /* --- Elevation system --- */
+  --shadow-card: 0 4px 18px rgba(0,0,0,.08);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,.10);
+  --shadow-btn: 0 2px 8px rgba(0,0,0,.06);
+
+  /* --- Motion --- */
+  --duration-fast: 120ms;
+  --duration-base: 150ms;
+  --duration-slow: 200ms;
+  --ease-standard: cubic-bezier(0.2, 0.7, 0.4, 1);
 }
 * { box-sizing: border-box; }
-body { margin: 0; font-family: 'Karla', sans-serif; background: var(--paper); }
+body { margin: 0; font-family: var(--font-sans); background: var(--paper); color: var(--ink); }
 
 /* ---- Login page ---- */
 .login-page {
@@ -34,39 +63,46 @@ body { margin: 0; font-family: 'Karla', sans-serif; background: var(--paper); }
   max-width: 360px;
   text-align: center;
   background: rgba(28, 23, 48, 0.55);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
-  border-radius: 16px;
-  padding: 24px 22px;
-  border: 1px solid rgba(246, 242, 233, 0.1);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border-radius: var(--radius-hero);
+  padding: 28px 24px;
+  border: 1px solid rgba(247, 245, 239, 0.12);
+  box-shadow: var(--shadow-lg);
 }
 .login-box form { text-align: left; }
 .login-box label { display: block; color: var(--paper); font-size: 12px; margin-bottom: 6px; opacity: 0.8; }
 .login-box input {
   width: 100%;
-  padding: 11px 14px;
-  border-radius: 8px;
+  padding: 12px 15px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--indigoSoft);
   background: var(--indigoSoft);
   color: var(--paper);
   font-size: 15px;
   margin-bottom: 16px;
-  font-family: 'Karla', sans-serif;
+  font-family: var(--font-sans);
+  transition: border-color var(--duration-base) var(--ease-standard);
 }
-.login-box input::placeholder { color: rgba(246,242,233,0.4); }
+.login-box input:focus { outline: none; border-color: var(--gold); }
+.login-box input::placeholder { color: rgba(247,245,239,0.4); }
 .login-box button {
   width: 100%;
-  padding: 13px 0;
-  border-radius: 8px;
+  padding: 14px 0;
+  border-radius: var(--radius-btn);
   border: none;
   background: var(--gold);
   color: var(--indigo);
   font-weight: 700;
   font-size: 15px;
   cursor: pointer;
-  font-family: 'Karla', sans-serif;
+  font-family: var(--font-sans);
   margin-top: 8px;
+  box-shadow: var(--shadow-btn);
+  transition: filter var(--duration-base) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
 }
+.login-box button:hover:not(:disabled) { filter: brightness(1.05); }
+.login-box button:active:not(:disabled) { transform: scale(0.98); }
 .login-box button:disabled { opacity: 0.6; cursor: not-allowed; }
 .login-note { color: var(--inkSoft); font-size: 12px; margin-top: 20px; opacity: 0.6; }
 .login-error {
@@ -74,7 +110,7 @@ body { margin: 0; font-family: 'Karla', sans-serif; background: var(--paper); }
   color: var(--danger);
   font-size: 13px;
   padding: 10px 14px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   margin-bottom: 16px;
   display: none;
 }
@@ -84,23 +120,24 @@ body { margin: 0; font-family: 'Karla', sans-serif; background: var(--paper); }
   color: var(--amber);
   font-size: 12px;
   padding: 10px 14px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   margin-bottom: 16px;
   text-align: left;
 }
 
 /* ---- Home page ---- */
 .home-page header {
-  background: var(--indigo);
+  background: linear-gradient(180deg, var(--indigo) 0%, var(--indigoSoft) 100%);
   padding: 18px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04);
 }
 .header-brand { display: flex; align-items: center; gap: 10px; }
 .header-brand img { width: 32px; height: 32px; display: block; }
 .header-brand span {
-  font-family: 'Anton', sans-serif;
+  font-family: var(--font-display);
   color: var(--paper);
   font-size: 17px;
   letter-spacing: 0.02em;
@@ -112,14 +149,21 @@ body { margin: 0; font-family: 'Karla', sans-serif; background: var(--paper); }
   color: var(--gold);
   font-size: 13px;
   cursor: pointer;
-  font-family: 'Karla', sans-serif;
+  font-family: var(--font-sans);
 }
-main { padding: 24px 20px; max-width: 480px; margin: 0 auto; }
+main { padding: 26px 20px; max-width: 480px; margin: 0 auto; }
 main .greeting { color: var(--inkSoft); font-size: 14px; margin: 0 0 2px; }
-main h1 { font-family: 'Anton', sans-serif; color: var(--ink); font-size: 26px; margin: 0 0 24px; text-transform: uppercase; }
-.card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 16px; }
+main h1 { font-family: var(--font-display); color: var(--ink); font-size: 26px; margin: 0 0 26px; text-transform: uppercase; }
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 22px;
+  margin-bottom: 18px;
+  box-shadow: var(--shadow-card);
+}
 .card-label { color: var(--inkSoft); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 10px; font-weight: 700; }
-.balance-amount { font-family: 'JetBrains Mono', monospace; font-size: 32px; font-weight: 700; color: var(--ink); margin: 0 0 12px; }
+.balance-amount { font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: 32px; font-weight: 700; color: var(--ink); margin: 0 0 12px; }
 .pill { display: inline-block; background: var(--amberSoft); color: var(--amber); font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em; }
 .pill-reason { color: var(--inkSoft); font-size: 13px; margin: 8px 0 0; }
 .fixture-teams { font-size: 17px; font-weight: 700; color: var(--ink); margin: 0 0 4px; }
@@ -145,12 +189,12 @@ main h1 { font-family: 'Anton', sans-serif; color: var(--ink); font-size: 26px; 
   display: flex;
   align-items: center;
 }
-.menu-btn svg { width: 22px; height: 22px; }
+.menu-btn svg { width: 24px; height: 24px; }
 .header-center-title {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  font-family: 'Anton', sans-serif;
+  font-family: var(--font-display);
   color: var(--paper);
   font-size: 15px;
   letter-spacing: 0.02em;
@@ -162,6 +206,7 @@ main h1 { font-family: 'Anton', sans-serif; color: var(--ink); font-size: 26px; 
   background: rgba(28, 23, 48, 0.45);
   z-index: 100;
   display: none;
+  transition: opacity var(--duration-slow) var(--ease-standard);
 }
 .drawer-overlay.open { display: block; }
 .drawer-panel {
@@ -175,9 +220,10 @@ main h1 { font-family: 'Anton', sans-serif; color: var(--ink); font-size: 26px; 
   z-index: 101;
   padding: 20px 0;
   transform: translateX(-100%);
-  transition: transform 0.2s ease;
+  transition: transform var(--duration-slow) var(--ease-standard);
   display: flex;
   flex-direction: column;
+  box-shadow: var(--shadow-lg);
 }
 .drawer-overlay.open .drawer-panel { transform: translateX(0); }
 .drawer-header {
@@ -185,12 +231,12 @@ main h1 { font-family: 'Anton', sans-serif; color: var(--ink); font-size: 26px; 
   align-items: center;
   gap: 10px;
   padding: 0 20px 20px;
-  border-bottom: 1px solid rgba(246,242,233,0.12);
+  border-bottom: 1px solid rgba(247,245,239,0.12);
   margin-bottom: 10px;
 }
 .drawer-header img { width: 28px; height: 28px; }
 .drawer-header span {
-  font-family: 'Anton', sans-serif;
+  font-family: var(--font-display);
   color: var(--paper);
   font-size: 14px;
   letter-spacing: 0.02em;
@@ -200,7 +246,7 @@ main h1 { font-family: 'Anton', sans-serif; color: var(--ink); font-size: 26px; 
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 13px 20px;
+  padding: 14px 20px;
   color: var(--paper);
   font-size: 14px;
   text-decoration: none;
@@ -212,17 +258,19 @@ main h1 { font-family: 'Anton', sans-serif; color: var(--ink); font-size: 26px; 
   width: 100%;
   text-align: left;
   cursor: pointer;
-  font-family: 'Karla', sans-serif;
+  font-family: var(--font-sans);
+  transition: background var(--duration-base) var(--ease-standard);
+  min-height: 44px;
 }
-.drawer-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+.drawer-item svg { width: 19px; height: 19px; flex-shrink: 0; }
 .drawer-item.active {
-  background: rgba(232, 172, 46, 0.12);
+  background: rgba(212, 160, 23, 0.12);
   border-left-color: var(--gold);
   font-weight: 700;
 }
 .drawer-divider {
   height: 1px;
-  background: rgba(246,242,233,0.12);
+  background: rgba(247,245,239,0.12);
   margin: 10px 20px;
 }
 .drawer-item.signout { color: var(--gold); margin-top: auto; }
@@ -245,8 +293,8 @@ body:not(.login-page):not(.accept-invite-page)::before {
   content: '';
   position: fixed;
   inset: 0;
-  background: url('images/watermark-crest.png') center 60% / 85vw no-repeat;
-  opacity: 0.07;
+  background: url('images/watermark-crest.png') center 60% / 100vw no-repeat;
+  opacity: 0.04;
   pointer-events: none;
   z-index: 0;
 }
@@ -274,11 +322,12 @@ body:not(.login-page):not(.accept-invite-page) > main {
 
 /* ---- Drill-down pages (e.g. Payment history) ---- */
 .drilldown-header {
-  background: var(--indigo);
+  background: linear-gradient(180deg, var(--indigo) 0%, var(--indigoSoft) 100%);
   padding: 18px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04);
 }
 .back-btn {
   color: var(--gold);
@@ -286,9 +335,9 @@ body:not(.login-page):not(.accept-invite-page) > main {
   align-items: center;
   text-decoration: none;
 }
-.back-btn svg { width: 22px; height: 22px; }
+.back-btn svg { width: 24px; height: 24px; }
 .drilldown-title {
-  font-family: 'Anton', sans-serif;
+  font-family: var(--font-display);
   color: var(--paper);
   font-size: 15px;
   text-transform: uppercase;
@@ -300,18 +349,19 @@ body:not(.login-page):not(.accept-invite-page) > main {
   color: var(--inkSoft);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin: 20px 0 8px;
+  margin: 22px 0 10px;
 }
 .payment-month-heading:first-child { margin-top: 4px; }
 .payment-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  margin-bottom: 8px;
+  padding: 14px 18px;
+  margin-bottom: 10px;
 }
 .payment-amount {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 15px;
   font-weight: 700;
   color: var(--ink);
@@ -325,12 +375,29 @@ body:not(.login-page):not(.accept-invite-page) > main {
 
 /* ---- Hero header (home page redesign) ---- */
 header.hero-header {
-  background: var(--indigo);
-  padding: 18px 20px 22px;
+  background: linear-gradient(180deg, var(--indigo) 0%, var(--indigoSoft) 100%);
+  padding: 18px 20px 24px;
   position: relative;
   overflow: hidden;
   display: block;
   text-align: center;
+}
+header.hero-header::after {
+  /* faint vignette for depth, kept subtle per brand direction */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 90% at 50% 0%, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.05) 100%);
+  pointer-events: none;
+}
+header.hero-header::before {
+  /* soft transition into the page body, avoids a hard cut */
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 18px;
+  background: linear-gradient(180deg, rgba(48,36,93,0) 0%, var(--paper) 100%);
+  pointer-events: none;
 }
 .hero-content {
   position: relative;
@@ -342,10 +409,10 @@ header.hero-header {
   bottom: -0.22em;
   z-index: 0;
   margin: 0;
-  font-family: 'Anton', sans-serif;
-  font-size: 220px;
+  font-family: var(--font-display);
+  font-size: 264px;
   line-height: 1;
-  color: rgba(246,242,233,0.07);
+  color: rgba(247,245,239,0.04);
   letter-spacing: 0;
   pointer-events: none;
   user-select: none;
@@ -369,25 +436,25 @@ header.hero-header {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  font-family: 'Anton', sans-serif;
+  font-family: var(--font-display);
   color: var(--paper);
   font-size: 13px;
   letter-spacing: 0.02em;
   text-transform: uppercase;
 }
 .hero-brand img { width: 22px; height: 22px; display: block; }
-.hero-greeting { color: rgba(246,242,233,0.6); font-size: 12px; margin: 14px 0 0; text-align: center; }
+.hero-greeting { color: rgba(247,245,239,0.6); font-size: 12px; margin: 16px 0 0; text-align: center; }
 .hero-name {
-  font-family: 'Anton', sans-serif;
+  font-family: var(--font-display);
   color: var(--paper);
   font-size: 24px;
-  margin: 2px 0 14px;
+  margin: 2px 0 16px;
   text-transform: uppercase;
   text-align: center;
 }
 .hero-squad-number {
-  font-family: 'Anton', sans-serif;
-  color: rgba(246,242,233,0.55);
+  font-family: var(--font-display);
+  color: rgba(247,245,239,0.55);
   font-size: 18px;
   margin-left: 8px;
   text-transform: none;
@@ -403,20 +470,21 @@ header.hero-header {
   align-items: center;
   background: var(--gold);
   color: var(--indigo);
-  border-radius: 12px;
-  padding: 10px 16px;
-  margin: 0 0 14px;
+  border-radius: var(--radius-sm);
+  padding: 11px 16px;
+  margin: 0 0 16px;
   font-size: 13.5px;
   font-weight: 700;
   text-align: center;
+  box-shadow: var(--shadow-btn);
 }
-.game-day-banner strong { font-family: 'JetBrains Mono', monospace; }
+.game-day-banner strong { font-variant-numeric: tabular-nums; }
 .stat-cap {
   min-width: 108px;
-  background: rgba(246,242,233,0.1);
-  border: 1px solid rgba(246,242,233,0.15);
-  border-radius: 10px;
-  padding: 8px 10px;
+  background: rgba(247,245,239,0.1);
+  border: 1px solid rgba(247,245,239,0.15);
+  border-radius: var(--radius-sm);
+  padding: 9px 11px;
   flex-shrink: 0;
 }
 .stat-cap-label {
@@ -428,7 +496,8 @@ header.hero-header {
   color: var(--gold);
 }
 .stat-cap-value {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   color: var(--paper);
   font-size: 14px;
   font-weight: 700;
@@ -441,30 +510,33 @@ header.hero-header {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
-  margin: 18px 0 20px;
+  margin: 20px 0 22px;
 }
 .tile {
   display: block;
   position: relative;
-  background: #fff;
+  background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 14px 10px;
+  border-radius: var(--radius-card);
+  padding: 16px 12px;
   text-align: center;
   text-decoration: none;
+  box-shadow: var(--shadow-card);
+  transition: transform var(--duration-fast) var(--ease-standard), box-shadow var(--duration-base) var(--ease-standard);
 }
+.tile:active { transform: scale(0.98); }
 .tile-accent { border: 2px solid var(--gold); }
 .tile-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
+  width: 37px;
+  height: 37px;
+  border-radius: var(--radius-sm);
   background: var(--indigoSoft);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 8px;
+  margin: 0 auto 9px;
 }
-.tile-icon svg { width: 18px; height: 18px; stroke: var(--gold); }
+.tile-icon svg { width: 20px; height: 20px; stroke: var(--gold); }
 .tile-label { font-size: 12.5px; font-weight: 700; color: var(--ink); }
 .tile-badge {
   position: absolute;
@@ -491,7 +563,7 @@ header.hero-header {
 }
 
 /* ---- Next fixture card home/away accent ---- */
-#fixture-card { position: relative; padding-left: 24px; }
+#fixture-card { position: relative; padding-left: 26px; }
 #fixture-card.is-home,
 #fixture-card.is-away { border-left-width: 0; }
 #fixture-card.is-home::before,
@@ -510,7 +582,7 @@ header.hero-header {
 /* ---- Fixtures list: highlight the next upcoming fixture ---- */
 .fixture-card { position: relative; }
 .fixture-card.is-home,
-.fixture-card.is-away { padding-left: 24px; }
+.fixture-card.is-away { padding-left: 26px; }
 .fixture-card.is-home::before,
 .fixture-card.is-away::before {
   content: '';
@@ -526,7 +598,7 @@ header.hero-header {
 .fixture-card.next-fixture {
   border: 2px solid var(--gold);
   background: var(--paperDim);
-  box-shadow: 0 4px 14px rgba(28,23,48,0.08);
+  box-shadow: var(--shadow-card);
 }
 .next-fixture-badge {
   display: inline-block;
@@ -543,18 +615,19 @@ header.hero-header {
 .fixture-when-strong { font-weight: 700; color: var(--ink); }
 
 /* ---- Bottom navigation bar ---- */
-.has-bottom-nav main { padding-bottom: 96px; }
+.has-bottom-nav main { padding-bottom: 98px; }
 .bottom-nav {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
-  background: #fff;
+  background: var(--card);
   border-top: 1px solid var(--line);
   display: flex;
   justify-content: space-around;
   padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
   z-index: 50;
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.04);
 }
 .bottom-nav a {
   display: flex;
@@ -567,9 +640,13 @@ header.hero-header {
   font-weight: 700;
   position: relative;
   padding: 2px 8px;
+  min-height: 44px;
+  justify-content: center;
+  transition: color var(--duration-base) var(--ease-standard);
 }
-.bottom-nav a svg { width: 20px; height: 20px; }
-.bottom-nav a.active { color: var(--indigo); }
+.bottom-nav a svg { width: 22px; height: 22px; transition: width var(--duration-base) var(--ease-standard), height var(--duration-base) var(--ease-standard); }
+.bottom-nav a.active { color: var(--indigo); font-weight: 600; }
+.bottom-nav a.active svg { width: 24px; height: 24px; }
 .nav-indicator {
   display: none;
   width: 16px;
@@ -593,7 +670,7 @@ header.hero-header {
 .child-tabs {
   display: flex;
   gap: 8px;
-  margin: 0 0 20px;
+  margin: 0 0 22px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -603,13 +680,14 @@ header.hero-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #fff;
+  background: var(--card);
   border: 1.5px solid var(--line);
-  border-radius: 12px;
-  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  padding: 11px 13px;
   cursor: pointer;
   text-align: left;
-  font-family: 'Karla', sans-serif;
+  font-family: var(--font-sans);
+  transition: border-color var(--duration-base) var(--ease-standard), background var(--duration-base) var(--ease-standard);
 }
 .child-tab.active { border-color: var(--gold); background: var(--paperDim); }
 .child-avatar {
@@ -620,7 +698,7 @@ header.hero-header {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'Anton', sans-serif;
+  font-family: var(--font-display);
   font-size: 14px;
   color: #fff;
   background: var(--indigoSoft);
@@ -636,4 +714,3 @@ header.hero-header {
   display: block;
 }
 .child-tab .child-squad { font-size: 11.5px; color: var(--inkSoft); }
-
