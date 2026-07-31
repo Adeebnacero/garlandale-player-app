@@ -26,7 +26,9 @@
       </div>
     </div>
     <p class="hero-greeting">Welcome back,</p>
-    <h1 class="hero-name" id="player-name">&mdash;</h1>
+    <h1 class="hero-name">
+      <span id="player-name">&mdash;</span><span class="hero-squad-number" id="player-squad-number" style="display:none;"></span>
+    </h1>
     <div class="game-day-banner" id="game-day-banner" style="display:none;"></div>
     <div class="stat-caps">
       <div class="stat-cap">
@@ -363,6 +365,14 @@
         'R' + Math.abs(n).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
       document.getElementById('player-name').textContent = body.name || 'Player';
+
+      const squadNumberEl = document.getElementById('player-squad-number');
+      if (body.squadNumber) {
+        squadNumberEl.textContent = '#' + body.squadNumber;
+        squadNumberEl.style.display = '';
+      } else {
+        squadNumberEl.style.display = 'none';
+      }
 
       const pillStyles = {
         green: { bg: 'var(--greenSoft)', fg: 'var(--green)', label: 'Compliant' },
