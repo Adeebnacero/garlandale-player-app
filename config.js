@@ -11,6 +11,13 @@
 export const SUPABASE_URL = "https://hfpmlrrunlttiekfdjdz.supabase.co";
 export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhmcG1scnJ1bmx0dGlla2ZkamR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0ODU4NDksImV4cCI6MjA5OTA2MTg0OX0.OlRaxJV7taXrydBFUt1ryWGiOMw0mXGp4_tSVzngoec";
 
+// URL of the separate Club Management app (admins/treasurers/coaches).
+// Used only by accept-invite.html, to offer a "wrong app?" link after a
+// person sets their password - in case a staff invite ever lands here
+// instead of there (e.g. a Supabase Auth redirect-URL misconfiguration).
+// Update this if the Club Management app's deployed domain changes.
+export const MANAGEMENT_APP_URL = "https://garlandalefc.vercel.app/";
+
 // SnapScan QR code (Option A: display-only, no API key needed for this).
 // Set this to the club's SnapScan SnapCode, found in the SnapScan
 // merchant/business portal. Leave blank ("") to hide the QR code entirely

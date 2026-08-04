@@ -51,6 +51,15 @@
 
   const supabase = configured ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
+  // Prefill the email field when arriving from the Club Management app's
+  // post-invite "where would you like to go" chooser, so the person only
+  // has to type their password here.
+  const prefillEmail = new URLSearchParams(window.location.search).get('email');
+  if (prefillEmail) {
+    document.getElementById('email').value = prefillEmail;
+    document.getElementById('password').focus();
+  }
+
   // If already signed in, skip straight to the dashboard.
   if (supabase) {
     supabase.auth.getSession().then(({ data }) => {

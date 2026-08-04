@@ -104,6 +104,20 @@ body { margin: 0; font-family: var(--font-sans); background: var(--paper); color
 .login-box button:hover:not(:disabled) { filter: brightness(1.05); }
 .login-box button:active:not(:disabled) { transform: scale(0.98); }
 .login-box button:disabled { opacity: 0.6; cursor: not-allowed; }
+.login-box button.btn-outline {
+  background: transparent;
+  color: var(--paper);
+  border: 1px solid rgba(247, 245, 239, 0.35);
+  box-shadow: none;
+}
+.login-box button.btn-outline:hover:not(:disabled) { filter: none; border-color: var(--gold); }
+.btn-subtext {
+  display: block;
+  font-weight: 400;
+  font-size: 11px;
+  opacity: 0.8;
+  margin-top: 2px;
+}
 .login-note { color: var(--inkSoft); font-size: 12px; margin-top: 20px; opacity: 0.6; }
 .login-error {
   background: var(--dangerSoft);

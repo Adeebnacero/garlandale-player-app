@@ -17,7 +17,6 @@
 const ALLOWED_ORIGINS = [
   "https://www.gfcplayers.co.za",
   "https://gfcplayers.co.za",
-  "https://garlandale-player-app.vercel.app", // old domain - safe to remove once fully cut over
   "http://localhost:3000",
   "http://127.0.0.1:3000",
   "http://localhost:5500",
