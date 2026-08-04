@@ -14,7 +14,10 @@
 <script defer src="/_vercel/insights/script.js"></script>
 <body class="home-page has-bottom-nav">
 
-<div id="loading" class="loading-page">Checking your session…</div>
+<div id="loading" class="loading-page">
+  <span data-loading-message>Checking your session…</span>
+  <button type="button" class="loading-retry-btn" data-loading-retry>Try again</button>
+</div>
 
 <div id="app" style="display:none;">
   <header class="hero-header">
@@ -156,12 +159,13 @@
 
 <script type="module">
   import { SUPABASE_URL, SUPABASE_ANON_KEY, SNAPSCAN_SNAPCODE } from './config.js';
-  import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+  import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
   import { cachedFetch } from './cache.js';
   import {
     setupDrawer, setupRefreshAndSignOut, registerServiceWorker,
     loadNoticeBadge, loadActiveStatus,
     loadMyPlayers, resolveSelectedPlayer, setSelectedPlayer, renderChildSwitcher,
+    getSessionOrTimeout, showSessionCheckError,
   } from './page-shared.js';
 
   const loading = document.getElementById('loading');
@@ -278,7 +282,13 @@
     window.history.replaceState({}, '', window.location.pathname);
   }
 
-  const { data } = await supabase.auth.getSession();
+  let data;
+  try {
+    ({ data } = await getSessionOrTimeout(supabase));
+  } catch (err) {
+    showSessionCheckError(loading);
+    throw err;
+  }
   if (!data.session) {
     window.location.href = 'index.html';
   } else {

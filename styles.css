@@ -186,11 +186,30 @@ main h1 { font-family: var(--font-display); color: var(--ink); font-size: 26px; 
 .loading-page {
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   color: var(--inkSoft);
   font-size: 14px;
+  text-align: center;
+  padding: 24px;
+  gap: 16px;
 }
+.loading-page .loading-retry-btn {
+  display: none;
+  padding: 10px 28px;
+  border-radius: var(--radius-btn);
+  border: none;
+  background: var(--gold);
+  color: var(--indigo);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  box-shadow: var(--shadow-btn);
+}
+.loading-page .loading-retry-btn:hover { filter: brightness(1.05); }
+.loading-page.is-error .loading-retry-btn { display: inline-block; }
 
 /* ---- Slide-out menu (nav redesign, option B) ---- */
 .home-page header { position: relative; }

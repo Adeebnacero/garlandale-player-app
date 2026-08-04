@@ -8,6 +8,63 @@
 
 import { cachedFetch, clearUserCache } from './cache.js';
 
+// How long we'll wait for the initial auth.getSession() call before giving
+// up and showing a retry option. Plain "is there a session" reads are
+// normally instant, but supabase-js can end up waiting on a stuck token
+// refresh - e.g. a request that was in flight when the OS suspended the
+// tab/app, or a cross-tab auth lock that never released - and in that case
+// the promise can simply hang forever with nothing to indicate why.
+const SESSION_CHECK_TIMEOUT_MS = 10000;
+
+/**
+ * Wraps supabase.auth.getSession() with a timeout. Without this, a stuck
+ * session check leaves the "Checking your session..." screen up
+ * indefinitely with no way out short of a force-quit - this is the
+ * underlying cause of the app appearing to hang on refresh or on reopen
+ * after the device has been idle for a while.
+ *
+ * Resolves with the normal { data } shape on success. Throws
+ * SESSION_CHECK_TIMEOUT on timeout so callers can show a retry state.
+ */
+export async function getSessionOrTimeout(supabase, timeoutMs = SESSION_CHECK_TIMEOUT_MS) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      const err = new Error('Timed out checking your session');
+      err.code = 'SESSION_CHECK_TIMEOUT';
+      reject(err);
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([supabase.auth.getSession(), timeout]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
+ * Puts a loading screen into its "couldn't check your session" state:
+ * swaps the message and reveals a "Try again" button that hard-reloads
+ * the page. Used when the initial session check times out or throws, so
+ * the person has a way out other than force-quitting the app.
+ *
+ * Expects the loading element to contain a `[data-loading-message]` node
+ * for the text and a `[data-loading-retry]` button - see the loading-page
+ * markup in each page's HTML.
+ */
+export function showSessionCheckError(loadingEl) {
+  if (!loadingEl) return;
+  const messageEl = loadingEl.querySelector('[data-loading-message]');
+  if (messageEl) {
+    messageEl.textContent = "Couldn't check your session. Check your connection and try again.";
+  }
+  loadingEl.classList.add('is-error');
+  const retryBtn = loadingEl.querySelector('[data-loading-retry]');
+  if (retryBtn) {
+    retryBtn.addEventListener('click', () => window.location.reload());
+  }
+}
+
 // Wires up the hamburger menu button and the drawer overlay it opens.
 // Hiding/showing #header-brand while the drawer is open is optional -
 // pages that don't have that element (or don't want the behaviour) are
