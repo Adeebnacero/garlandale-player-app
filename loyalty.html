@@ -27,6 +27,30 @@
   <button type="button" class="loading-retry-btn" data-loading-retry>Try again</button>
 </div>
 
+<script>
+  // Watchdog for the session check below: runs immediately, with no
+  // imports and no network dependency of its own, so it can't get stuck
+  // on the same thing the main module script might get stuck on. This
+  // covers the case the getSessionOrTimeout() safety net in page-shared.js
+  // can't: a full page reload (e.g. the OS discarded this tab while the
+  // app was minimised, then reloaded it on return) where the ES module
+  // imports themselves - fetched fresh over the network - are what hangs,
+  // before any of our own code has had a chance to run.
+  (function () {
+    setTimeout(function () {
+      var appEl = document.getElementById('app');
+      var loadingEl = document.getElementById('loading');
+      if (!loadingEl || (appEl && appEl.style.display !== 'none')) return;
+      if (loadingEl.classList.contains('is-error')) return;
+      var msg = loadingEl.querySelector('[data-loading-message]');
+      if (msg) msg.textContent = "Couldn't check your session. Check your connection and try again.";
+      loadingEl.classList.add('is-error');
+      var retryBtn = loadingEl.querySelector('[data-loading-retry]');
+      if (retryBtn) retryBtn.addEventListener('click', function () { window.location.reload(); });
+    }, 15000);
+  })();
+</script>
+
 <div id="app" style="display:none;">
   <header>
     <button class="menu-btn" id="menu-btn" aria-label="Menu">
