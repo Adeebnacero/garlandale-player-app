@@ -208,21 +208,6 @@ Deno.serve(async (req) => {
         successUrl: `${APP_URL}/home.html?payment=success`,
         cancelUrl: `${APP_URL}/home.html?payment=cancelled`,
         failureUrl: `${APP_URL}/home.html?payment=failed`,
-        // Lets a human manually checking the Yoco Business Portal / Sales
-        // History identify who a payment was for at a glance, without
-        // needing an API call - metadata below covers the same info but
-        // isn't reliably surfaced in Yoco's own UI. displayName renders on
-        // Yoco's hosted checkout page itself and in sales breakdowns;
-        // price here is display-only and does not affect the amount
-        // actually collected (that's still driven by `amount` above).
-        externalId: playerId,
-        lineItems: [
-          {
-            displayName: `${player.name || "Player"} — monthly fee`,
-            quantity: 1,
-            pricingDetails: { price: amountCents },
-          },
-        ],
         metadata: {
           playerId,
           checkoutRef,

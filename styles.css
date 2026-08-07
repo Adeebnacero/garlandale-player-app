@@ -307,6 +307,12 @@ main h1 { font-family: var(--font-display); color: var(--ink); font-size: 26px; 
   margin: 10px 20px;
 }
 .drawer-item.signout { color: var(--gold); margin-top: auto; }
+.drawer-footer {
+  padding: 10px 20px 4px;
+  font-size: 11px;
+  color: rgba(247, 245, 239, 0.4);
+  font-family: var(--font-sans);
+}
 
 /* ---- Notice read/unread indicator ---- */
 .unread-dot {
