@@ -103,7 +103,7 @@ export function downloadFixtureICS(fixture) {
 // refresh - e.g. a request that was in flight when the OS suspended the
 // tab/app, or a cross-tab auth lock that never released - and in that case
 // the promise can simply hang forever with nothing to indicate why.
-const SESSION_CHECK_TIMEOUT_MS = 10000;
+const SESSION_CHECK_TIMEOUT_MS = 7000;
 
 /**
  * Wraps supabase.auth.getSession() with a timeout. Without this, a stuck
