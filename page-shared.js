@@ -8,6 +8,95 @@
 
 import { cachedFetch, clearUserCache } from './cache.js';
 
+// ---------------------------------------------------------------------------
+// Add-to-calendar (.ics) support for fixtures. Pure client-side - no
+// network call, no backend change needed. Times are written as "floating"
+// (no Z/timezone suffix), which calendar apps interpret in the viewer's
+// own local time - correct here since a fixture kicks off at a fixed
+// local wall-clock time regardless of where the guardian's phone thinks
+// it is.
+// ---------------------------------------------------------------------------
+
+function icsEscape(text) {
+  return String(text || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\n/g, '\\n');
+}
+
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+// Builds the raw .ics file contents for a single fixture. Falls back to
+// an all-day event if kickoff_time isn't set - still useful (shows up on
+// the right date) rather than being skipped entirely.
+export function buildFixtureICS(fixture) {
+  const summary = `Garlandale FC vs ${fixture.opponent || 'TBC'}`;
+  const location = fixture.venue || 'TBC';
+  const description = 'Please report 1 hour before kick-off.';
+  const uid = `gfc-${fixture.match_date}-${Math.random().toString(36).slice(2)}@garlandalefc`;
+
+  const now = new Date();
+  const dtstamp =
+    `${now.getUTCFullYear()}${pad2(now.getUTCMonth() + 1)}${pad2(now.getUTCDate())}T` +
+    `${pad2(now.getUTCHours())}${pad2(now.getUTCMinutes())}${pad2(now.getUTCSeconds())}Z`;
+
+  const [y, m, d] = fixture.match_date.split('-').map(Number);
+  let dtStartLine, dtEndLine;
+
+  if (fixture.kickoff_time) {
+    const [hh, mm] = fixture.kickoff_time.split(':').map(Number);
+    const start = new Date(y, m - 1, d, hh, mm, 0);
+    const end = new Date(start.getTime() + 2 * 60 * 60 * 1000); // 2-hour default duration
+    const fmt = (dt) =>
+      `${dt.getFullYear()}${pad2(dt.getMonth() + 1)}${pad2(dt.getDate())}T` +
+      `${pad2(dt.getHours())}${pad2(dt.getMinutes())}00`;
+    dtStartLine = `DTSTART:${fmt(start)}`;
+    dtEndLine = `DTEND:${fmt(end)}`;
+  } else {
+    const dateOnly = `${y}${pad2(m)}${pad2(d)}`;
+    const next = new Date(Date.UTC(y, m - 1, d));
+    next.setUTCDate(next.getUTCDate() + 1);
+    const nextDate = `${next.getUTCFullYear()}${pad2(next.getUTCMonth() + 1)}${pad2(next.getUTCDate())}`;
+    dtStartLine = `DTSTART;VALUE=DATE:${dateOnly}`;
+    dtEndLine = `DTEND;VALUE=DATE:${nextDate}`;
+  }
+
+  return [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Garlandale FC//Player App//EN',
+    'CALSCALE:GREGORIAN',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTAMP:${dtstamp}`,
+    dtStartLine,
+    dtEndLine,
+    `SUMMARY:${icsEscape(summary)}`,
+    `LOCATION:${icsEscape(location)}`,
+    `DESCRIPTION:${icsEscape(description)}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n');
+}
+
+// Triggers a browser download of the .ics file for one fixture.
+export function downloadFixtureICS(fixture) {
+  const ics = buildFixtureICS(fixture);
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const safeOpponent = (fixture.opponent || 'fixture').replace(/[^a-z0-9]+/gi, '-');
+  a.download = `garlandale-fc-vs-${safeOpponent}-${fixture.match_date}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 // How long we'll wait for the initial auth.getSession() call before giving
 // up and showing a retry option. Plain "is there a session" reads are
 // normally instant, but supabase-js can end up waiting on a stuck token

@@ -652,6 +652,22 @@ header.hero-header::before {
   margin-bottom: 8px;
 }
 .fixture-when-strong { font-weight: 700; color: var(--ink); }
+.add-to-calendar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 7px 12px;
+  border-radius: var(--radius-btn);
+  border: 1px solid var(--indigo);
+  background: transparent;
+  color: var(--indigo);
+  font-family: 'Karla', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.add-to-calendar-btn:hover { background: var(--paperDim); }
 
 /* ---- Bottom navigation bar ---- */
 .has-bottom-nav main { padding-bottom: 98px; }
