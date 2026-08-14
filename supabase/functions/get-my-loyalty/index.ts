@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
 
   const { data: partners, error: partnersErr } = await adminClient
     .from("partners")
-    .select("id, name, logo_url")
+    .select("id, name, logo_url, category")
     .eq("active", true)
     .order("display_order", { ascending: true });
 
@@ -95,12 +95,20 @@ Deno.serve(async (req) => {
     });
   }
 
+  const allPartners = partners ?? [];
+  const partnersSupported = allPartners.filter((p) => p.category !== "powered");
+  const partnersPowered = allPartners.filter((p) => p.category === "powered");
+
   return new Response(
     JSON.stringify({
       active: true,
       name: player.name,
       reg_no: player.reg_no,
-      partners: partners ?? [],
+      // Kept for backwards compatibility with any older client still
+      // reading a single flat list.
+      partners: allPartners,
+      partners_supported: partnersSupported,
+      partners_powered: partnersPowered,
     }),
     { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
   );

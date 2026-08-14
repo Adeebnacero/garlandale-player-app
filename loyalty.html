@@ -93,9 +93,15 @@
         <p style="font-size:13px; color:var(--inkSoft); margin:0; font-variant-numeric: tabular-nums;">Reg. <span id="loyalty-reg-no">—</span></p>
       </div>
 
-      <p class="card-label" style="margin: 20px 0 10px;">Supported by</p>
-      <div id="partners-empty" style="display:none; color: var(--inkSoft); font-size: 14px;">No partners yet — check back soon.</div>
-      <div id="partners-carousel" style="display:flex; gap:14px; overflow-x:auto; padding: 4px 0 12px;"></div>
+      <div style="height: 32px;"></div>
+
+      <p class="card-label" style="margin: 0 0 10px; text-align:center;">Supported by</p>
+      <div id="partners-supported-empty" style="display:none; color: var(--inkSoft); font-size: 14px; text-align:center;">No partners yet — check back soon.</div>
+      <div id="partners-supported-carousel" style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap; overflow-x:auto; padding: 4px 0 12px;"></div>
+
+      <p class="card-label" style="margin: 20px 0 10px; text-align:center;">Powered by</p>
+      <div id="partners-powered-empty" style="display:none; color: var(--inkSoft); font-size: 14px; text-align:center;">No partners yet — check back soon.</div>
+      <div id="partners-powered-carousel" style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap; overflow-x:auto; padding: 4px 0 12px;"></div>
     </div>
   </main>
 
@@ -228,24 +234,37 @@
       document.getElementById('loyalty-name').textContent = body.name || 'Player';
       document.getElementById('loyalty-reg-no').textContent = body.reg_no || '—';
 
-      const carousel = document.getElementById('partners-carousel');
-      const partnersEmpty = document.getElementById('partners-empty');
+      function renderPartnerGroup(carouselId, emptyId, list) {
+        const carousel = document.getElementById(carouselId);
+        const empty = document.getElementById(emptyId);
 
-      if (!body.partners || body.partners.length === 0) {
-        partnersEmpty.style.display = 'block';
-      } else {
-        carousel.innerHTML = body.partners
+        if (!list || list.length === 0) {
+          empty.style.display = 'block';
+          carousel.innerHTML = '';
+          return;
+        }
+
+        empty.style.display = 'none';
+        carousel.innerHTML = list
           .map(
             (p) => `
-              <div style="flex: 0 0 auto; width: 90px; text-align:center;">
+              <div style="flex: 0 0 auto; width: 116px; text-align:center;">
                 <img src="${escapeAttr(p.logo_url)}" alt="${escapeAttr(p.name)}"
-                     style="width:72px; height:72px; object-fit:contain; border-radius:10px; border:1px solid var(--line); background:#fff; padding:8px;" />
-                <p style="font-size:11px; color:var(--inkSoft); margin:6px 0 0;">${escapeHtml(p.name)}</p>
+                     style="width:96px; height:96px; object-fit:contain; border-radius:12px; border:1px solid var(--line); background:#fff; padding:10px;" />
+                <p style="font-size:12px; color:var(--inkSoft); margin:8px 0 0;">${escapeHtml(p.name)}</p>
               </div>
             `
           )
           .join('');
       }
+
+      // Fall back to the flat `partners` list (treated as "supported")
+      // if an older function build hasn't been redeployed yet.
+      const partnersSupported = body.partners_supported ?? body.partners ?? [];
+      const partnersPowered = body.partners_powered ?? [];
+
+      renderPartnerGroup('partners-supported-carousel', 'partners-supported-empty', partnersSupported);
+      renderPartnerGroup('partners-powered-carousel', 'partners-powered-empty', partnersPowered);
 
       loyaltyContent.style.display = 'block';
     } catch (err) {
