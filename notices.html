@@ -110,7 +110,7 @@
   import { cachedFetch, invalidateCacheKey } from './cache.js';
   import {
     setupDrawer, setupRefreshAndSignOut, registerServiceWorker,
-    loadNoticeBadge, loadActiveStatus, escapeHtml,
+    loadNoticeBadge, loadActiveStatus, escapeHtml, linkifyText,
     locationButtonsHtml, locationMapBoxHtml, handleShowMapClick,
     loadMyPlayers, resolveSelectedPlayer,
     getSessionOrTimeout, showSessionCheckError,
@@ -206,7 +206,7 @@
                 ? ' · For ' + n.for_children.map((c) => escapeHtml(c.name)).join(', ')
                 : ''}
             </p>
-            <p style="color: var(--ink); font-size: 14px; line-height:1.5; margin:0; white-space: pre-wrap;">${escapeHtml(n.body)}</p>
+            <p style="color: var(--ink); font-size: 14px; line-height:1.5; margin:0; white-space: pre-wrap; overflow-wrap: anywhere;">${linkifyText(n.body)}</p>
             ${locationButtonsHtml(n, `notice-${n.id}`)
               ? `<div class="fixture-actions">${locationButtonsHtml(n, `notice-${n.id}`)}</div>${locationMapBoxHtml(n, `notice-${n.id}`)}`
               : ''}

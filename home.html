@@ -148,7 +148,7 @@
 
     <div class="card" id="training-card" style="display:none;">
       <p class="card-label" id="training-title">Training Schedule</p>
-      <p style="color: var(--ink); font-size: 14px; line-height:1.6; margin:0; white-space: pre-wrap;" id="training-body"></p>
+      <p style="color: var(--ink); font-size: 14px; line-height:1.6; margin:0; white-space: pre-wrap; overflow-wrap: anywhere;" id="training-body"></p>
       <div id="training-location"></div>
     </div>
 
@@ -194,6 +194,7 @@
     loadMyPlayers, resolveSelectedPlayer, setSelectedPlayer, renderChildSwitcher,
     getSessionOrTimeout, showSessionCheckError,
     safeMapsLink, locationButtonsHtml, locationMapBoxHtml, handleShowMapClick,
+    linkifyText,
   } from './page-shared.js';
 
   const loading = document.getElementById('loading');
@@ -487,7 +488,8 @@
       if (!trainingNotice) return; // no training notice posted yet - card stays hidden
 
       document.getElementById('training-title').textContent = trainingNotice.title || 'Training Schedule';
-      document.getElementById('training-body').textContent = trainingNotice.body;
+      // linkifyText() escapes the notice text, so this is safe as innerHTML.
+      document.getElementById('training-body').innerHTML = linkifyText(trainingNotice.body);
       renderLocation(document.getElementById('training-location'), trainingNotice, 'home-training');
       document.getElementById('training-card').style.display = 'block';
     } catch (err) {

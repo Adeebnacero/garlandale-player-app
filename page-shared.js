@@ -396,6 +396,82 @@ export function escapeAttr(str) {
 }
 
 // ---------------------------------------------------------------------------
+// Tappable web links in notice text.
+//
+// Notices are typed as plain text in Club Management. linkifyText() turns
+// any secure web address in that text into a link that opens in the
+// phone's browser, and escapes everything else, so the result is always
+// safe to put into innerHTML.
+//
+//   https://...  -> link
+//   www....      -> link (treated as https://)
+//   http://...   -> left as plain text (not secure)
+//
+// Addresses with a username/password part (a trick for disguising the real
+// site, e.g. https://garlandale.co.za@other.site) also stay as plain text.
+// Trailing punctuation (the full stop after a link at the end of a
+// sentence, a closing bracket around it) is left outside the link. Long
+// addresses are shortened on screen, but the site name always stays
+// visible so guardians can see where a link goes.
+// ---------------------------------------------------------------------------
+
+const LINK_CANDIDATE = /\b(?:https?:\/\/|www\.)[^\s<>"`]+/gi;
+const LINK_DISPLAY_MAX = 40;
+const CLOSING_TO_OPENING = { ')': '(', ']': '[', '}': '{' };
+
+function trimLinkPunctuation(raw) {
+  let s = raw;
+  for (;;) {
+    const last = s.slice(-1);
+    if (/[.,;:!?'*]/.test(last)) { s = s.slice(0, -1); continue; }
+    // Only drop a closing bracket if it doesn't belong to the address
+    // itself: keep the ")" in .../Foo_(bar), drop it in "(see ...)".
+    const opening = CLOSING_TO_OPENING[last];
+    if (opening && s.split(last).length > s.split(opening).length) { s = s.slice(0, -1); continue; }
+    return s;
+  }
+}
+
+function toSecureLink(candidate) {
+  if (/^http:\/\//i.test(candidate)) return null;
+  const withScheme = /^www\./i.test(candidate) ? `https://${candidate}` : candidate;
+  let u;
+  try {
+    u = new URL(withScheme);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== 'https:' || u.username || u.password) return null;
+  if (!u.hostname.includes('.') || u.hostname.endsWith('.')) return null;
+  return u;
+}
+
+function linkDisplayText(u) {
+  let text = u.hostname.replace(/^www\./, '') + (u.pathname === '/' ? '' : u.pathname) + u.search + u.hash;
+  try { text = decodeURI(text); } catch { /* keep the encoded form */ }
+  return text.length > LINK_DISPLAY_MAX ? `${text.slice(0, LINK_DISPLAY_MAX - 1)}…` : text;
+}
+
+/**
+ * Escapes `text` for HTML and turns each secure web address in it into a
+ * link that opens in the browser. Safe to assign to innerHTML.
+ */
+export function linkifyText(text) {
+  const str = String(text ?? '');
+  let html = '';
+  let last = 0;
+  for (const match of str.matchAll(LINK_CANDIDATE)) {
+    const candidate = trimLinkPunctuation(match[0]);
+    const u = toSecureLink(candidate);
+    if (!u) continue; // stays plain text, escaped along with the rest
+    html += escapeHtml(str.slice(last, match.index));
+    html += `<a class="notice-link" href="${escapeAttr(u.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(linkDisplayText(u))}</a>`;
+    last = match.index + candidate.length;
+  }
+  return html + escapeHtml(str.slice(last));
+}
+
+// ---------------------------------------------------------------------------
 // Multi-child (guardian) support
 //
 // Most accounts are still single-child, and none of this changes anything
