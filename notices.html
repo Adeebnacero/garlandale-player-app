@@ -111,6 +111,7 @@
   import {
     setupDrawer, setupRefreshAndSignOut, registerServiceWorker,
     loadNoticeBadge, loadActiveStatus, escapeHtml,
+    locationButtonsHtml, locationMapBoxHtml, handleShowMapClick,
     loadMyPlayers, resolveSelectedPlayer,
     getSessionOrTimeout, showSessionCheckError,
   } from './page-shared.js';
@@ -206,9 +207,13 @@
                 : ''}
             </p>
             <p style="color: var(--ink); font-size: 14px; line-height:1.5; margin:0; white-space: pre-wrap;">${escapeHtml(n.body)}</p>
+            ${locationButtonsHtml(n, `notice-${n.id}`)
+              ? `<div class="fixture-actions">${locationButtonsHtml(n, `notice-${n.id}`)}</div>${locationMapBoxHtml(n, `notice-${n.id}`)}`
+              : ''}
           </div>
         `)
         .join('');
+      noticesList.onclick = (e) => { handleShowMapClick(e, noticesList); };
 
       setupReadTracking(accessToken, userId);
     } catch (err) {

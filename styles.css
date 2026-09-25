@@ -668,6 +668,39 @@ header.hero-header::before {
   cursor: pointer;
 }
 .add-to-calendar-btn:hover { background: var(--paperDim); }
+a.add-to-calendar-btn { text-decoration: none; }
+
+/* Row of buttons under a fixture: Add to calendar / Directions / Show map */
+.fixture-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.fixture-actions .add-to-calendar-btn { margin-top: 0; }
+
+/* Tappable venue name - opens Google Maps directions */
+.venue-link {
+  color: var(--indigo);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Map preview, opened with the Show map button */
+.venue-map {
+  margin-top: 10px;
+  border-radius: var(--radius-btn);
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+.venue-map[hidden] { display: none; }
+.venue-map iframe {
+  display: block;
+  width: 100%;
+  height: 220px;
+  border: 0;
+}
 
 /* ---- Bottom navigation bar ---- */
 .has-bottom-nav main { padding-bottom: 98px; }
