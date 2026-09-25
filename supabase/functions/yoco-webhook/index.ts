@@ -77,6 +77,15 @@ Deno.serve(async (req) => {
   }
 
   const payload = event.payload ?? {};
+
+  // Club shop orders are handled completely separately from fees and
+  // return before any fee logic below runs. create-store-checkout marks
+  // them with metadata.kind = "store_order" and never sends a playerId,
+  // so a store payment can't be recorded as a fee payment.
+  if (payload.metadata?.kind === "store_order") {
+    return await handleStoreOrderPayment(payload);
+  }
+
   const playerId = payload.metadata?.playerId;
   const amountCents = Number(payload.amount);
   const paymentRef = payload.id; // Yoco's payment id, e.g. "p_..."
@@ -124,3 +133,41 @@ Deno.serve(async (req) => {
 
   return new Response("ok", { status: 200 });
 });
+
+// Records a paid club shop order. store_mark_paid() does the work in one
+// database transaction: checks the amount, gives the order its number,
+// reduces stock and marks the lines paid. It's safe to call more than
+// once for the same payment, so unlike the fee branch above, a database
+// failure returns 500 to make Yoco retry the delivery.
+// deno-lint-ignore no-explicit-any
+async function handleStoreOrderPayment(payload: any): Promise<Response> {
+  const orderId = payload.metadata?.orderId;
+  const amountCents = Number(payload.amount);
+  const paymentRef = payload.id;
+
+  if (!orderId || !Number.isFinite(amountCents) || amountCents <= 0 || !paymentRef) {
+    console.error("yoco-webhook: store order payment missing order id, amount, or payment id", {
+      orderId, amount: payload.amount, paymentRef,
+    });
+    return new Response("missing order id, amount, or payment id", { status: 200 });
+  }
+
+  const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  const { data, error } = await adminClient.rpc("store_mark_paid", {
+    p_order_id: orderId,
+    p_payment_id: paymentRef,
+    p_amount_cents: Math.round(amountCents),
+  });
+
+  if (error) {
+    console.error("yoco-webhook: store_mark_paid failed - Yoco will retry", error.message);
+    return new Response("failed to record store order payment", { status: 500 });
+  }
+
+  if (data?.result === "not_found") {
+    console.error("yoco-webhook: store order not found for a successful payment - refund it in Yoco", { orderId, paymentRef });
+  } else if (data?.result === "duplicate_payment") {
+    console.error("yoco-webhook: second payment for an already-paid store order - flagged for staff", { orderId, paymentRef });
+  }
+  return new Response(`store order: ${data?.result ?? "ok"}`, { status: 200 });
+}
