@@ -385,6 +385,30 @@ export async function loadActiveStatus(SUPABASE_URL, accessToken, userId, player
   }
 }
 
+// Shows the Shop tab in the bottom navigation only while the club shop is
+// open. Shows the last known state straight away (so the tab doesn't pop
+// in and out), then checks get-shop?summary=1 in the background, so
+// switching the shop on or off in Club Management shows up the next time
+// a page opens. Non-critical: if the check fails, nothing changes.
+export async function updateShopNav(SUPABASE_URL, accessToken, userId) {
+  const key = `gfc_shop_open_${userId}`;
+  const apply = (open) => {
+    document.querySelectorAll('[data-shop-nav]').forEach((el) => { el.style.display = open ? 'flex' : 'none'; });
+  };
+  try { apply(localStorage.getItem(key) === '1'); } catch { /* storage unavailable */ }
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/get-shop?summary=1`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return;
+    const body = await res.json();
+    apply(!!body.open);
+    try { localStorage.setItem(key, body.open ? '1' : '0'); } catch { /* storage unavailable */ }
+  } catch {
+    // Offline or not deployed yet - keep whatever is showing.
+  }
+}
+
 export function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;

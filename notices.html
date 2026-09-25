@@ -96,6 +96,11 @@
       <span>Loyalty</span>
       <span class="nav-indicator"></span>
     </a>
+    <a href="shop.html" data-shop-nav style="display:none;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 016 0"/></svg>
+      <span>Shop</span>
+      <span class="nav-indicator"></span>
+    </a>
     <a href="profile.html">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
       <span>Profile</span>
@@ -114,6 +119,7 @@
     locationButtonsHtml, locationMapBoxHtml, handleShowMapClick,
     loadMyPlayers, resolveSelectedPlayer,
     getSessionOrTimeout, showSessionCheckError,
+    updateShopNav,
   } from './page-shared.js';
 
   const loading = document.getElementById('loading');
@@ -161,6 +167,7 @@
     const selectedPlayerId = resolveSelectedPlayer(uid, players);
 
     loadNoticeBadge(SUPABASE_URL, accessToken, uid);
+    updateShopNav(SUPABASE_URL, accessToken, uid);
     if (selectedPlayerId) loadActiveStatus(SUPABASE_URL, accessToken, uid, selectedPlayerId);
     loadNotices(accessToken, uid, players.length > 1);
   }
