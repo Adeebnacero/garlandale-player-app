@@ -996,3 +996,16 @@ a.add-to-calendar-btn { text-decoration: none; }
 .page-back { display: inline-flex; align-items: center; gap: 4px; margin: -8px 0 16px; color: var(--indigo); font: 700 13.5px var(--font-sans); text-decoration: none; }
 .page-back svg { width: 18px; height: 18px; }
 .page-back:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; border-radius: 4px; }
+
+/* Top bar stays at the top while the page scrolls (every page except
+   Home, whose large welcome header scrolls away as before). The ☰ menu,
+   loading indicators and toasts all sit above it. A soft shadow appears
+   once the page has scrolled (setupStickyHeader in page-shared.js). */
+.home-page header:not(.hero-header) {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  transition: box-shadow var(--duration-base, .2s) var(--ease-standard, ease);
+}
+.home-page header:not(.hero-header).is-scrolled { box-shadow: 0 2px 12px rgba(28, 23, 48, 0.22); }
+@media (prefers-reduced-motion: reduce) { .home-page header:not(.hero-header) { transition: none; } }

@@ -116,7 +116,7 @@
     locationButtonsHtml, locationMapBoxHtml, handleShowMapClick,
     loadMyPlayers, resolveSelectedPlayer,
     getSessionOrTimeout, showSessionCheckError,
-    updateShopNav, setupNavigationFeedback,
+    updateShopNav, setupNavigationFeedback, setupStickyHeader,
   } from './page-shared.js';
 
   const loading = document.getElementById('loading');
@@ -166,6 +166,7 @@
     loadNoticeBadge(SUPABASE_URL, accessToken, uid);
     updateShopNav(SUPABASE_URL, accessToken, uid);
     setupNavigationFeedback();
+    setupStickyHeader();
     if (selectedPlayerId) loadActiveStatus(SUPABASE_URL, accessToken, uid, selectedPlayerId);
     loadNotices(accessToken, uid, players.length > 1);
   }

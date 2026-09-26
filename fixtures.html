@@ -121,7 +121,7 @@
     loadMyPlayers, resolveSelectedPlayer, setSelectedPlayer, renderChildSwitcher,
     getSessionOrTimeout, showSessionCheckError,
     downloadFixtureICS,
-    updateShopNav, setupNavigationFeedback,
+    updateShopNav, setupNavigationFeedback, setupStickyHeader,
   } from './page-shared.js';
 
   const loading = document.getElementById('loading');
@@ -155,6 +155,7 @@
     loadNoticeBadge(SUPABASE_URL, accessToken, uid);
     updateShopNav(SUPABASE_URL, accessToken, uid);
     setupNavigationFeedback();
+    setupStickyHeader();
 
     let players = [];
     try {

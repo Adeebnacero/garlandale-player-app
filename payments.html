@@ -70,7 +70,7 @@
   import {
     registerServiceWorker,
     loadMyPlayers, resolveSelectedPlayer, setSelectedPlayer, renderChildSwitcher,
-    getSessionOrTimeout, showSessionCheckError, setupNavigationFeedback,
+    getSessionOrTimeout, showSessionCheckError, setupNavigationFeedback, setupStickyHeader,
   } from './page-shared.js';
 
   const loading = document.getElementById('loading');
@@ -100,6 +100,7 @@
 
     registerServiceWorker();
     setupNavigationFeedback();
+    setupStickyHeader();
 
     let players = [];
     try {

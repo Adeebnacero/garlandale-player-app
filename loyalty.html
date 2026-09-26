@@ -147,7 +147,7 @@
     loadNoticeBadge, escapeHtml, escapeAttr,
     loadMyPlayers, resolveSelectedPlayer, setSelectedPlayer, renderChildSwitcher,
     getSessionOrTimeout, showSessionCheckError,
-    updateShopNav, setupNavigationFeedback,
+    updateShopNav, setupNavigationFeedback, setupStickyHeader,
   } from './page-shared.js';
 
   const loading = document.getElementById('loading');
@@ -181,6 +181,7 @@
     loadNoticeBadge(SUPABASE_URL, accessToken, uid);
     updateShopNav(SUPABASE_URL, accessToken, uid);
     setupNavigationFeedback();
+    setupStickyHeader();
     const loyaltyNavItem = document.getElementById('loyalty-nav-item');
     if (loyaltyNavItem) loyaltyNavItem.style.display = 'flex';
 

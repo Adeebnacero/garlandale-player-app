@@ -459,6 +459,20 @@ export function setupNavigationFeedback() {
   window.addEventListener('pageshow', stopNavigationFeedback);
 }
 
+// The top bar stays at the top of the screen while scrolling (see the
+// sticky header rule in styles.css). This adds a soft shadow under it once
+// the page has scrolled, so it's clear the content is moving beneath it,
+// and makes the browser leave room for the bar when it scrolls anything
+// into view. Does nothing on Home, whose big header isn't fixed.
+export function setupStickyHeader() {
+  const header = document.querySelector('body.home-page header:not(.hero-header)');
+  if (!header || getComputedStyle(header).position !== 'sticky') return;
+  const update = () => header.classList.toggle('is-scrolled', window.scrollY > 4);
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+  document.documentElement.style.scrollPaddingTop = `${header.offsetHeight + 8}px`;
+}
+
 // Shows the Shop tab in the bottom navigation only while the club shop is
 // open. Shows the last known state straight away (so the tab doesn't pop
 // in and out), then checks get-shop?summary=1 in the background, so

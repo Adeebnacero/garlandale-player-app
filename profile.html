@@ -147,7 +147,7 @@
     loadNoticeBadge, loadActiveStatus,
     loadMyPlayers, resolveSelectedPlayer, setSelectedPlayer, renderChildSwitcher,
     getSessionOrTimeout, showSessionCheckError,
-    updateShopNav, setupNavigationFeedback,
+    updateShopNav, setupNavigationFeedback, setupStickyHeader,
   } from './page-shared.js';
 
   let selectedPlayerId = null;
@@ -183,6 +183,7 @@
     loadNoticeBadge(SUPABASE_URL, accessToken, uid);
     updateShopNav(SUPABASE_URL, accessToken, uid);
     setupNavigationFeedback();
+    setupStickyHeader();
 
     let players = [];
     try {
