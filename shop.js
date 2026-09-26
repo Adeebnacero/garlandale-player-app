@@ -15,7 +15,7 @@ import { cachedFetch } from './cache.js';
 import {
   registerServiceWorker, setupDrawer, setupRefreshAndSignOut, loadNoticeBadge, loadActiveStatus,
   loadMyPlayers, resolveSelectedPlayer, getSessionOrTimeout, showSessionCheckError,
-  escapeHtml, escapeAttr, linkifyText, updateShopNav,
+  escapeHtml, escapeAttr, linkifyText, updateShopNav, setupNavigationFeedback, startNavigationFeedback,
 } from './page-shared.js';
 
 const loading = document.getElementById('loading');
@@ -198,7 +198,7 @@ function availability(p) {
 
 function viewShop() {
   if (shopError) return `<h1>Club shop</h1>${tabs('shop')}<div class="shop-alert bad">${escapeHtml(shopError)}</div><button class="shop-btn-line" type="button" data-reload>Try again</button>`;
-  if (!shop) return `<h1>Club shop</h1>${tabs('shop')}<p class="shop-muted">Loading the shop…</p>`;
+  if (!shop) return `<h1>Club shop</h1>${tabs('shop')}<p class="shop-muted"><span class="spinner-inline" aria-hidden="true"></span>Loading the shop…</p>`;
   if (!shop.open) {
     return `<h1>Club shop</h1>${tabs('shop')}${flashHtml()}
       <div class="shop-empty">${ICON_BAG}<h2>The shop is closed</h2><p>The club shop isn’t open at the moment. Your past orders are still under My orders.</p></div>`;
@@ -370,7 +370,7 @@ function stepsHtml(lines) {
 function viewOrders() {
   let body;
   if (ordersError) body = `<div class="shop-alert bad">${escapeHtml(ordersError)}</div><button class="shop-btn-line" type="button" data-reload-orders>Try again</button>`;
-  else if (!orders) body = '<p class="shop-muted">Loading your orders…</p>';
+  else if (!orders) body = '<p class="shop-muted"><span class="spinner-inline" aria-hidden="true"></span>Loading your orders…</p>';
   else if (!orders.length) body = `<div class="shop-empty">${ICON_BAG}<h2>No orders yet</h2><p>Orders you place in the shop appear here.</p></div>`;
   else body = orders.map((o) => {
     const st = orderListStatus(o);
@@ -384,7 +384,7 @@ function viewOrders() {
 }
 
 function viewOrder(id) {
-  if (!orders) return `${backLink('#orders', 'My orders')}<p class="shop-muted">Loading…</p>`;
+  if (!orders) return `${backLink('#orders', 'My orders')}<p class="shop-muted"><span class="spinner-inline" aria-hidden="true"></span>Loading…</p>`;
   const o = orders.find((x) => x.id === id);
   if (!o) return `${backLink('#orders', 'My orders')}<div class="shop-empty"><h2>Order not found</h2></div>`;
   const groups = [
@@ -510,7 +510,7 @@ function render() {
   // Screens that need the shop's products wait for them, so a message
   // (e.g. "Payment cancelled") isn't shown and used up on an empty screen.
   if (!shop && !shopError && ['product', 'cart', 'checkout', 'policy'].includes(r.name)) {
-    $view.innerHTML = '<p class="shop-muted">Loading the shop…</p>';
+    $view.innerHTML = '<p class="shop-muted"><span class="spinner-inline" aria-hidden="true"></span>Loading the shop…</p>';
     updateCartBadge();
     return;
   }
@@ -635,6 +635,7 @@ async function pay() {
     });
     writeJSON(DETAILS_KEY, { name, phone, email });
     sessionStorage.setItem('gfc_shop_pending_order', r.orderId);
+    startNavigationFeedback();
     window.location.href = r.redirectUrl;
   } catch (err) {
     paying = false;
@@ -656,6 +657,7 @@ setupDrawer();
 setupRefreshAndSignOut(supabase, uid);
 loadNoticeBadge(SUPABASE_URL, token, uid);
 updateShopNav(SUPABASE_URL, token, uid);
+setupNavigationFeedback();
 
 // Guardian's name and phone from the linked player's record (loaded
 // below), used to pre-fill checkout the first time.

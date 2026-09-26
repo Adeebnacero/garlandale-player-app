@@ -7,9 +7,15 @@
 // the cache exists purely as an offline fallback, never as a reason to
 // show stale content while online.
 //
+// Exception: pictures in images/ and icons/ (the club crest, app icons)
+// are served from the phone's saved copy once they've been downloaded,
+// because they almost never change and fetching them on every screen
+// wastes mobile data. If you replace one of those pictures, keep the same
+// file name AND bump CACHE_NAME below, so phones pick up the new one.
+//
 // CACHE_NAME is bumped whenever this file itself changes, which forces
 // old cached entries to be discarded (see the "activate" handler below).
-const CACHE_NAME = "garlandale-player-app-v5";
+const CACHE_NAME = "garlandale-player-app-v6";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -25,6 +31,8 @@ const APP_SHELL = [
   "./config.js",
   "./cache.js",
   "./manifest.json",
+  "./images/crest.png",
+  "./icons/favicon.png",
 ];
 
 self.addEventListener("install", (event) => {
@@ -66,6 +74,23 @@ self.addEventListener("fetch", (event) => {
   // request if that changes later.
   if (event.request.method !== "GET") {
     event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // Pictures: saved copy first, network only if it isn't saved yet.
+  if (url.pathname.includes("/images/") || url.pathname.includes("/icons/")) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        return fetch(event.request).then((response) => {
+          if (response.ok) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+          }
+          return response;
+        });
+      })
+    );
     return;
   }
 

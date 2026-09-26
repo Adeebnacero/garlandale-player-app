@@ -300,6 +300,7 @@ export function setupRefreshAndSignOut(supabase, userId) {
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => {
       clearUserCache(userId);
+      startNavigationFeedback();
       window.location.reload();
     });
   }
@@ -307,6 +308,7 @@ export function setupRefreshAndSignOut(supabase, userId) {
   const logoutBtn = document.getElementById('logout-btn');
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
+      startNavigationFeedback();
       clearUserCache(userId);
       // Defense-in-depth: also wipe the service worker's Cache Storage, in
       // case any same-origin page asset was cached mid-session. Harmless -
@@ -383,6 +385,78 @@ export async function loadActiveStatus(SUPABASE_URL, accessToken, userId, player
   } catch (err) {
     // Non-critical - Loyalty tab just stays hidden this load.
   }
+}
+
+// ---------------------------------------------------------------------------
+// Loading feedback when moving between screens.
+//
+// Each screen is its own page, so after a tap the old screen stays put
+// until the next one arrives. setupNavigationFeedback() shows that the tap
+// worked: a thin gold bar across the top if the next screen takes more
+// than 0.3 seconds, and the crest with a turning ring if it takes more than
+// 1 second. Quick switches show nothing, so there's no flicker.
+//
+// Call it once per page. For navigations started from code rather than a
+// link (e.g. opening Yoco, signing out), call startNavigationFeedback()
+// just before changing window.location.
+// ---------------------------------------------------------------------------
+const NAV_BAR_DELAY_MS = 300;
+const NAV_OVERLAY_DELAY_MS = 1000;
+let navTimers = [];
+let navEls = null;
+
+function navElements() {
+  if (navEls) return navEls;
+  const bar = document.createElement('div');
+  bar.className = 'nav-progress';
+  bar.setAttribute('aria-hidden', 'true');
+  const overlay = document.createElement('div');
+  overlay.className = 'nav-overlay';
+  overlay.setAttribute('role', 'status');
+  overlay.innerHTML = '<div class="loader-emblem" aria-hidden="true"><img src="images/crest.png" alt="" width="48" height="56"></div><span>Loading…</span>';
+  document.body.append(bar, overlay);
+  navEls = { bar, overlay };
+  return navEls;
+}
+
+export function stopNavigationFeedback() {
+  navTimers.forEach(clearTimeout);
+  navTimers = [];
+  if (navEls) {
+    navEls.bar.classList.remove('show');
+    navEls.overlay.classList.remove('show');
+  }
+}
+
+export function startNavigationFeedback() {
+  const { bar, overlay } = navElements();
+  stopNavigationFeedback();
+  navTimers.push(setTimeout(() => bar.classList.add('show'), NAV_BAR_DELAY_MS));
+  navTimers.push(setTimeout(() => overlay.classList.add('show'), NAV_OVERLAY_DELAY_MS));
+}
+
+export function setupNavigationFeedback() {
+  if (window.__gfcNavFeedback) return;
+  window.__gfcNavFeedback = true;
+  navElements(); // create now, so the crest image is already loaded when needed
+
+  document.addEventListener('click', (e) => {
+    // Runs after the page's own click handlers, so anything they handled
+    // themselves (defaultPrevented) is left alone.
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = e.target.closest && e.target.closest('a[href]');
+    if (!a || a.hasAttribute('download')) return;
+    if (a.target && a.target !== '_self') return;           // opens a new tab or app
+    let url;
+    try { url = new URL(a.href, location.href); } catch { return; }
+    if (url.origin !== location.origin) return;             // tel:, mailto:, other sites
+    if (url.pathname === location.pathname && url.search === location.search) return; // same screen
+    startNavigationFeedback();
+  });
+
+  // Coming back with the phone's back button can show the old page from
+  // memory, still showing the loader: clear it.
+  window.addEventListener('pageshow', stopNavigationFeedback);
 }
 
 // Shows the Shop tab in the bottom navigation only while the club shop is
