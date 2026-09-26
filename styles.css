@@ -814,6 +814,9 @@ a.add-to-calendar-btn { text-decoration: none; }
 
 /* =========================================================
    Club shop (shop.html / shop.js)
+   Product photos are always fitted inside their box (object-fit:
+   contain), never cropped, on a white background so the spare space
+   blends in with typical white-background product photos.
    ========================================================= */
 .header-cart { position: relative; background: none; border: 0; color: var(--gold); padding: 4px; cursor: pointer; display: flex; }
 .header-cart svg { width: 24px; height: 24px; }
@@ -828,7 +831,7 @@ a.add-to-calendar-btn { text-decoration: none; }
 .product-tile { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-card); overflow: hidden; text-align: left; padding: 0; cursor: pointer; font-family: var(--font-sans); color: var(--ink); display: flex; flex-direction: column; }
 .product-tile:focus-visible, .shop-btn-gold:focus-visible, .shop-btn-line:focus-visible, .size-chip:focus-visible, .qty button:focus-visible, .order-row:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .product-art { background: var(--paperDim); aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-.product-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.product-art img { width: 100%; height: 100%; object-fit: contain; display: block; background: #fff; }
 .product-art svg { width: 44%; height: 44%; color: #bdb6a3; }
 .product-tile.is-soldout .product-art { opacity: .5; }
 .product-tile-body { padding: 10px 12px 12px; }
@@ -841,7 +844,13 @@ a.add-to-calendar-btn { text-decoration: none; }
 .avail.preorder { color: #5a4aa8; }
 .avail.out { color: var(--inkSoft); }
 .detail-art { background: var(--paperDim); border-radius: var(--radius-card); aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; margin-bottom: 18px; overflow: hidden; }
-.detail-art img { width: 100%; height: 100%; object-fit: cover; }
+.detail-art img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+/* Product page with a photo: show the photo at its own shape, full width.
+   Its height is capped at the old square box's size (the content width), so
+   a tall photo never takes more room than before and Add to cart stays in
+   the same place; within that cap it's fitted, never cropped. */
+.detail-art.has-photo { aspect-ratio: auto; background: #fff; }
+.detail-art.has-photo img { height: auto; max-height: min(calc(100vw - 40px), 440px); }
 .detail-art svg { width: 30%; height: 30%; color: #bdb6a3; }
 .detail-name { font-family: var(--font-display); text-transform: uppercase; font-size: 24px; line-height: 1.1; margin: 0 0 6px; }
 .detail-price { font-size: 22px; font-weight: 700; color: var(--indigo); margin: 0 0 10px; font-variant-numeric: tabular-nums; }
@@ -866,7 +875,7 @@ a.add-to-calendar-btn { text-decoration: none; }
 .cart-line { display: grid; grid-template-columns: 56px 1fr auto; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); align-items: start; }
 .cart-line:last-child { border-bottom: 0; }
 .cart-thumb { width: 56px; height: 56px; border-radius: 12px; background: var(--paperDim); display: flex; align-items: center; justify-content: center; overflow: hidden; }
-.cart-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.cart-thumb img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
 .cart-thumb svg { width: 50%; height: 50%; color: #bdb6a3; }
 .cart-line h3 { font-size: 14px; margin: 0 0 2px; }
 .cart-meta { font-size: 12.5px; color: var(--inkSoft); margin: 0 0 8px; }

@@ -243,7 +243,7 @@ function viewProduct(id) {
   const label = p.state === 'out' ? 'Sold out' : needSize ? 'Choose a size' : room === 0 ? 'All available stock is in your cart' : p.saleMode === 'preorder' ? 'Add pre-order to cart' : 'Add to cart';
   return `
     ${backLink('#', 'Shop')}
-    <div class="detail-art">${art(p)}</div>
+    <div class="detail-art${p.photoUrl ? ' has-photo' : ''}">${art(p)}</div>
     <p class="detail-name">${escapeHtml(p.name)}</p>
     <p class="detail-price">${money(p.price)}</p>
     <span class="avail ${a.cls}">${a.text}</span>
