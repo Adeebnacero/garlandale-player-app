@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
   const { data: matches, error: matchesErr } = await adminClient
     .from("matches")
     .select(
-      "id, opponent, home_away, venue, match_date, kickoff_time, division, competition, age_group"
+      "id, opponent, home_away, venue, match_date, kickoff_time, division, competition, age_group, location_link, location_embed"
     )
     .gte("match_date", today)
     .order("match_date", { ascending: true })

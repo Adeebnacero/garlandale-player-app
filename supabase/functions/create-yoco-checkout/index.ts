@@ -209,6 +209,7 @@ Deno.serve(async (req) => {
         cancelUrl: `${APP_URL}/home.html?payment=cancelled`,
         failureUrl: `${APP_URL}/home.html?payment=failed`,
         metadata: {
+          kind: "fees",
           playerId,
           checkoutRef,
           playerName: player.name || "Player",

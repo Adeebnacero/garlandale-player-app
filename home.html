@@ -142,12 +142,14 @@
         <p class="fixture-when" id="fixture-venue" style="margin-top:4px;"></p>
         <p class="fixture-when" id="fixture-when" style="margin-top:4px;"></p>
         <p class="fixture-when" style="margin-top:8px; font-style: italic;">Please report 1 hour before kick-off</p>
+        <div id="fixture-location"></div>
       </div>
     </div>
 
     <div class="card" id="training-card" style="display:none;">
       <p class="card-label" id="training-title">Training Schedule</p>
-      <p style="color: var(--ink); font-size: 14px; line-height:1.6; margin:0; white-space: pre-wrap;" id="training-body"></p>
+      <p style="color: var(--ink); font-size: 14px; line-height:1.6; margin:0; white-space: pre-wrap; overflow-wrap: anywhere;" id="training-body"></p>
+      <div id="training-location"></div>
     </div>
 
   </main>
@@ -174,6 +176,11 @@
       <span>Loyalty</span>
       <span class="nav-indicator"></span>
     </a>
+    <a href="shop.html" data-shop-nav style="display:none;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 016 0"/></svg>
+      <span>Shop</span>
+      <span class="nav-indicator"></span>
+    </a>
     <a href="profile.html">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
       <span>Profile</span>
@@ -191,6 +198,9 @@
     loadNoticeBadge, loadActiveStatus,
     loadMyPlayers, resolveSelectedPlayer, setSelectedPlayer, renderChildSwitcher,
     getSessionOrTimeout, showSessionCheckError,
+    safeMapsLink, locationButtonsHtml, locationMapBoxHtml, handleShowMapClick,
+    linkifyText,
+    updateShopNav,
   } from './page-shared.js';
 
   const loading = document.getElementById('loading');
@@ -331,6 +341,7 @@
     // Combined across every linked child - unaffected by which one is
     // currently selected in the switcher below.
     loadNoticeBadge(SUPABASE_URL, accessToken, uid);
+    updateShopNav(SUPABASE_URL, accessToken, uid);
     loadTraining(accessToken, uid);
 
     let players = [];
@@ -484,11 +495,24 @@
       if (!trainingNotice) return; // no training notice posted yet - card stays hidden
 
       document.getElementById('training-title').textContent = trainingNotice.title || 'Training Schedule';
-      document.getElementById('training-body').textContent = trainingNotice.body;
+      // linkifyText() escapes the notice text, so this is safe as innerHTML.
+      document.getElementById('training-body').innerHTML = linkifyText(trainingNotice.body);
+      renderLocation(document.getElementById('training-location'), trainingNotice, 'home-training');
       document.getElementById('training-card').style.display = 'block';
     } catch (err) {
       // Non-critical - card just stays hidden this load.
     }
+  }
+
+  // Fills `container` with the Directions / Show map buttons for a fixture
+  // or notice, or empties it if staff didn't add a location.
+  function renderLocation(container, item, key) {
+    if (!container) return;
+    const buttons = locationButtonsHtml(item, key);
+    container.innerHTML = buttons
+      ? `<div class="fixture-actions">${buttons}</div>${locationMapBoxHtml(item, key)}`
+      : '';
+    container.onclick = (e) => { handleShowMapClick(e, container); };
   }
 
   async function loadFixture(accessToken, userId, playerId) {
@@ -529,8 +553,27 @@
 
       document.getElementById('fixture-teams').textContent =
         `Garlandale FC vs ${f.opponent || 'TBC'}`;
-      document.getElementById('fixture-venue').textContent =
-        `Venue: ${f.venue || 'TBC'}${f.home_away ? ` (${f.home_away === 'H' ? 'Home' : 'Away'})` : ''}`;
+      // Built with DOM nodes rather than innerHTML, since the venue is
+      // free text typed in Club Management. The name only becomes a link
+      // when staff added a Directions link for this fixture.
+      const venueEl = document.getElementById('fixture-venue');
+      const directionsUrl = safeMapsLink(f.location_link);
+      venueEl.textContent = 'Venue: ';
+      if (directionsUrl && f.venue) {
+        const a = document.createElement('a');
+        a.className = 'venue-link';
+        a.href = directionsUrl;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.textContent = f.venue;
+        venueEl.appendChild(a);
+      } else {
+        venueEl.appendChild(document.createTextNode(f.venue || 'TBC'));
+      }
+      if (f.home_away) {
+        venueEl.appendChild(document.createTextNode(` (${f.home_away === 'H' ? 'Home' : 'Away'})`));
+      }
+      renderLocation(document.getElementById('fixture-location'), f, 'home-fixture');
       document.getElementById('fixture-when').textContent =
         `Time: ${dateFmt(f.match_date)}${f.kickoff_time ? ' · ' + timeFmt(f.kickoff_time) : ''}`;
 

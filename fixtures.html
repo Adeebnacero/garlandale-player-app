@@ -100,6 +100,11 @@
       <span>Loyalty</span>
       <span class="nav-indicator"></span>
     </a>
+    <a href="shop.html" data-shop-nav style="display:none;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 016 0"/></svg>
+      <span>Shop</span>
+      <span class="nav-indicator"></span>
+    </a>
     <a href="profile.html">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
       <span>Profile</span>
@@ -114,10 +119,12 @@
   import { cachedFetch } from './cache.js';
   import {
     setupDrawer, setupRefreshAndSignOut, registerServiceWorker,
-    loadNoticeBadge, loadActiveStatus, escapeHtml,
+    loadNoticeBadge, loadActiveStatus, escapeHtml, escapeAttr,
+    safeMapsLink, locationButtonsHtml, locationMapBoxHtml, handleShowMapClick,
     loadMyPlayers, resolveSelectedPlayer, setSelectedPlayer, renderChildSwitcher,
     getSessionOrTimeout, showSessionCheckError,
     downloadFixtureICS,
+    updateShopNav,
   } from './page-shared.js';
 
   const loading = document.getElementById('loading');
@@ -149,6 +156,7 @@
     setupRefreshAndSignOut(supabase, uid);
     registerServiceWorker();
     loadNoticeBadge(SUPABASE_URL, accessToken, uid);
+    updateShopNav(SUPABASE_URL, accessToken, uid);
 
     let players = [];
     try {
@@ -215,17 +223,28 @@
         .map((f, i) => {
           const isNext = i === 0;
           const homeAwayClass = f.home_away === 'H' ? ' is-home' : f.home_away === 'A' ? ' is-away' : '';
+          // The venue name only becomes a link when staff added a
+          // Directions link - never a guessed search.
+          const directionsUrl = safeMapsLink(f.location_link);
+          const venueHtml = directionsUrl && f.venue
+            ? `<a class="venue-link" href="${escapeAttr(directionsUrl)}" target="_blank" rel="noopener">${escapeHtml(f.venue)}</a>`
+            : escapeHtml(f.venue || 'TBC');
+          const mapKey = `fixture-${i}`;
           return `
           <div class="card fixture-card${isNext ? ' next-fixture' : ''}${homeAwayClass}">
             ${isNext ? '<span class="next-fixture-badge">Next fixture</span>' : ''}
             <p class="fixture-teams">Garlandale FC vs ${escapeHtml(f.opponent || 'TBC')}</p>
-            <p class="fixture-when" style="margin-top:4px;">Venue: ${escapeHtml(f.venue || 'TBC')}${f.home_away ? ` (${f.home_away === 'H' ? 'Home' : 'Away'})` : ''}</p>
+            <p class="fixture-when" style="margin-top:4px;">Venue: ${venueHtml}${f.home_away ? ` (${f.home_away === 'H' ? 'Home' : 'Away'})` : ''}</p>
             <p class="fixture-when${isNext ? ' fixture-when-strong' : ''}" style="margin-top:4px;">Time: ${dateFmt(f.match_date)}${f.kickoff_time ? ' · ' + timeFmt(f.kickoff_time) : ''}</p>
             <p class="fixture-when" style="margin-top:8px; font-style: italic;">Please report 1 hour before kick-off</p>
-            <button type="button" class="add-to-calendar-btn" data-fixture-index="${i}">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-              Add to calendar
-            </button>
+            <div class="fixture-actions">
+              <button type="button" class="add-to-calendar-btn" data-fixture-index="${i}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                Add to calendar
+              </button>
+              ${locationButtonsHtml(f, mapKey)}
+            </div>
+            ${locationMapBoxHtml(f, mapKey)}
           </div>
         `;
         })
@@ -236,7 +255,8 @@
       // function (e.g. switching between children) replaces the previous
       // handler instead of stacking a duplicate on top of it.
       fixturesList.onclick = (e) => {
-        const btn = e.target.closest('.add-to-calendar-btn');
+        if (handleShowMapClick(e, fixturesList)) return;
+        const btn = e.target.closest('button.add-to-calendar-btn');
         if (!btn) return;
         const idx = Number(btn.getAttribute('data-fixture-index'));
         const fixture = body.fixtures[idx];

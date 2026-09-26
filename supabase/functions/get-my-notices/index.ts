@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
 
   const { data: notices, error: noticesErr } = await adminClient
     .from("notices")
-    .select("id, title, body, category, pinned, posted_at, target_age_group")
+    .select("id, title, body, category, pinned, posted_at, target_age_group, location_link, location_embed")
     .order("pinned", { ascending: false })
     .order("posted_at", { ascending: false })
     .limit(50); // fetch generously; age-group filtering below trims to what's actually relevant
@@ -125,6 +125,8 @@ Deno.serve(async (req) => {
     category: n.category,
     pinned: n.pinned,
     posted_at: n.posted_at,
+    location_link: n.location_link,
+    location_embed: n.location_embed,
     for_children: forChildren.map((c) => ({ id: c.id, name: c.name })),
     // Read only once every relevant child has read it - keeps this in
     // lockstep with get-my-notice-count's combined badge logic.

@@ -35,7 +35,9 @@ function pad2(n) {
 export function buildFixtureICS(fixture) {
   const summary = `Garlandale FC vs ${fixture.opponent || 'TBC'}`;
   const location = fixture.venue || 'TBC';
-  const description = 'Please report 1 hour before kick-off.';
+  const directions = safeMapsLink(fixture.location_link);
+  const description = 'Please report 1 hour before kick-off.' +
+    (directions ? `\nDirections: ${directions}` : '');
   const uid = `gfc-${fixture.match_date}-${Math.random().toString(36).slice(2)}@garlandalefc`;
 
   const now = new Date();
@@ -80,6 +82,120 @@ export function buildFixtureICS(fixture) {
     'END:VEVENT',
     'END:VCALENDAR',
   ].join('\r\n');
+}
+
+// ---------------------------------------------------------------------------
+// Venue locations (fixtures and notices). Staff paste these in Club
+// Management; the Player Portal only ever shows what they entered, never a
+// guess. Two optional fields per item:
+//   location_link  -> Directions button (a Google Maps share link)
+//   location_embed -> Show map button (a Google Maps embed address)
+//
+// Both are checked in Club Management and by the database before they're
+// saved. They are checked once more here before anything is displayed, so
+// a bad value can never reach a guardian's screen, and the map iframe is
+// always built by this code - pasted HTML is never inserted.
+// ---------------------------------------------------------------------------
+
+const MAPS_LINK_RULES = [
+  { host: /^maps\.app\.goo\.gl$/, path: /^\/.+/ },
+  { host: /^goo\.gl$/, path: /^\/maps\/.+/ },
+  { host: /^(www\.)?google\.(com|co\.za)$/, path: /^\/maps(\/|$)/ },
+  { host: /^maps\.google\.(com|co\.za)$/, path: /^\// },
+];
+const MAPS_UNSAFE_CHARS = /[\s"'<>`\\]/;
+
+function parseSafeHttpsUrl(value) {
+  const s = String(value || '');
+  if (!s || s.length > 2000 || MAPS_UNSAFE_CHARS.test(s)) return null;
+  try {
+    const u = new URL(s);
+    if (u.protocol !== 'https:' || u.username || u.password || u.port) return null;
+    return u;
+  } catch {
+    return null;
+  }
+}
+
+// Returns the link if it's a genuine Google Maps link, otherwise null.
+export function safeMapsLink(value) {
+  const u = parseSafeHttpsUrl(value);
+  if (!u) return null;
+  return MAPS_LINK_RULES.some((r) => r.host.test(u.hostname) && r.path.test(u.pathname)) ? u.href : null;
+}
+
+// Returns the address if it's a genuine Google Maps embed, otherwise null.
+export function safeMapsEmbed(value) {
+  const u = parseSafeHttpsUrl(value);
+  if (!u) return null;
+  return /^(www\.)?google\.com$/.test(u.hostname) &&
+    /^\/maps\/embed(\/v1\/[a-z]+)?$/.test(u.pathname) && u.search
+    ? u.href
+    : null;
+}
+
+const PIN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>';
+const MAP_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>';
+
+/**
+ * HTML for the Directions / Show map buttons of one fixture or notice.
+ * Returns '' when the item has no (valid) location, so callers can drop it
+ * straight into a template. `key` must be unique on the page - it links
+ * the Show map button to its map box (see locationMapBoxHtml).
+ */
+export function locationButtonsHtml(item, key) {
+  const link = safeMapsLink(item && item.location_link);
+  const embed = safeMapsEmbed(item && item.location_embed);
+  let html = '';
+  if (link) {
+    html += `<a class="add-to-calendar-btn" href="${escapeAttr(link)}" target="_blank" rel="noopener">${PIN_ICON} Directions</a>`;
+  }
+  if (embed) {
+    html += `<button type="button" class="add-to-calendar-btn show-map-btn" data-map-key="${escapeAttr(key)}" aria-expanded="false">${MAP_ICON} <span>Show map</span></button>`;
+  }
+  return html;
+}
+
+// Empty, hidden box the map is loaded into when Show map is tapped.
+export function locationMapBoxHtml(item, key) {
+  const embed = safeMapsEmbed(item && item.location_embed);
+  return embed
+    ? `<div class="venue-map" data-map-box="${escapeAttr(key)}" data-embed="${escapeAttr(embed)}" hidden></div>`
+    : '';
+}
+
+/**
+ * Handles a click on a Show map button inside `root`. Call it first from a
+ * delegated click handler; returns true if it dealt with the click. The
+ * iframe is only created the first time a map is opened, so a page of
+ * fixtures doesn't download several maps on a phone connection.
+ */
+export function handleShowMapClick(e, root) {
+  const btn = e.target.closest('.show-map-btn');
+  if (!btn || !root.contains(btn)) return false;
+  const key = btn.getAttribute('data-map-key');
+  const box = Array.from(root.querySelectorAll('[data-map-box]')).find((b) => b.getAttribute('data-map-box') === key);
+  if (!box) return true;
+  const opening = box.hidden;
+  if (opening && !box.firstChild) {
+    const src = safeMapsEmbed(box.getAttribute('data-embed'));
+    if (!src) return true;
+    const iframe = document.createElement('iframe');
+    iframe.src = src;
+    iframe.title = 'Venue map';
+    iframe.loading = 'lazy';
+    iframe.referrerPolicy = 'no-referrer-when-downgrade';
+    iframe.allowFullscreen = true;
+    // Google Maps needs scripts to draw the map; everything else a framed
+    // page could do (redirect this app, open forms, etc.) stays blocked.
+    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox');
+    box.appendChild(iframe);
+  }
+  box.hidden = !opening;
+  const label = btn.querySelector('span');
+  if (label) label.textContent = opening ? 'Hide map' : 'Show map';
+  btn.setAttribute('aria-expanded', String(opening));
+  return true;
 }
 
 // Triggers a browser download of the .ics file for one fixture.
@@ -269,6 +385,30 @@ export async function loadActiveStatus(SUPABASE_URL, accessToken, userId, player
   }
 }
 
+// Shows the Shop tab in the bottom navigation only while the club shop is
+// open. Shows the last known state straight away (so the tab doesn't pop
+// in and out), then checks get-shop?summary=1 in the background, so
+// switching the shop on or off in Club Management shows up the next time
+// a page opens. Non-critical: if the check fails, nothing changes.
+export async function updateShopNav(SUPABASE_URL, accessToken, userId) {
+  const key = `gfc_shop_open_${userId}`;
+  const apply = (open) => {
+    document.querySelectorAll('[data-shop-nav]').forEach((el) => { el.style.display = open ? 'flex' : 'none'; });
+  };
+  try { apply(localStorage.getItem(key) === '1'); } catch { /* storage unavailable */ }
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/get-shop?summary=1`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return;
+    const body = await res.json();
+    apply(!!body.open);
+    try { localStorage.setItem(key, body.open ? '1' : '0'); } catch { /* storage unavailable */ }
+  } catch {
+    // Offline or not deployed yet - keep whatever is showing.
+  }
+}
+
 export function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
@@ -277,6 +417,82 @@ export function escapeHtml(str) {
 
 export function escapeAttr(str) {
   return escapeHtml(str).replace(/"/g, '&quot;');
+}
+
+// ---------------------------------------------------------------------------
+// Tappable web links in notice text.
+//
+// Notices are typed as plain text in Club Management. linkifyText() turns
+// any secure web address in that text into a link that opens in the
+// phone's browser, and escapes everything else, so the result is always
+// safe to put into innerHTML.
+//
+//   https://...  -> link
+//   www....      -> link (treated as https://)
+//   http://...   -> left as plain text (not secure)
+//
+// Addresses with a username/password part (a trick for disguising the real
+// site, e.g. https://garlandale.co.za@other.site) also stay as plain text.
+// Trailing punctuation (the full stop after a link at the end of a
+// sentence, a closing bracket around it) is left outside the link. Long
+// addresses are shortened on screen, but the site name always stays
+// visible so guardians can see where a link goes.
+// ---------------------------------------------------------------------------
+
+const LINK_CANDIDATE = /\b(?:https?:\/\/|www\.)[^\s<>"`]+/gi;
+const LINK_DISPLAY_MAX = 40;
+const CLOSING_TO_OPENING = { ')': '(', ']': '[', '}': '{' };
+
+function trimLinkPunctuation(raw) {
+  let s = raw;
+  for (;;) {
+    const last = s.slice(-1);
+    if (/[.,;:!?'*]/.test(last)) { s = s.slice(0, -1); continue; }
+    // Only drop a closing bracket if it doesn't belong to the address
+    // itself: keep the ")" in .../Foo_(bar), drop it in "(see ...)".
+    const opening = CLOSING_TO_OPENING[last];
+    if (opening && s.split(last).length > s.split(opening).length) { s = s.slice(0, -1); continue; }
+    return s;
+  }
+}
+
+function toSecureLink(candidate) {
+  if (/^http:\/\//i.test(candidate)) return null;
+  const withScheme = /^www\./i.test(candidate) ? `https://${candidate}` : candidate;
+  let u;
+  try {
+    u = new URL(withScheme);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== 'https:' || u.username || u.password) return null;
+  if (!u.hostname.includes('.') || u.hostname.endsWith('.')) return null;
+  return u;
+}
+
+function linkDisplayText(u) {
+  let text = u.hostname.replace(/^www\./, '') + (u.pathname === '/' ? '' : u.pathname) + u.search + u.hash;
+  try { text = decodeURI(text); } catch { /* keep the encoded form */ }
+  return text.length > LINK_DISPLAY_MAX ? `${text.slice(0, LINK_DISPLAY_MAX - 1)}…` : text;
+}
+
+/**
+ * Escapes `text` for HTML and turns each secure web address in it into a
+ * link that opens in the browser. Safe to assign to innerHTML.
+ */
+export function linkifyText(text) {
+  const str = String(text ?? '');
+  let html = '';
+  let last = 0;
+  for (const match of str.matchAll(LINK_CANDIDATE)) {
+    const candidate = trimLinkPunctuation(match[0]);
+    const u = toSecureLink(candidate);
+    if (!u) continue; // stays plain text, escaped along with the rest
+    html += escapeHtml(str.slice(last, match.index));
+    html += `<a class="notice-link" href="${escapeAttr(u.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(linkDisplayText(u))}</a>`;
+    last = match.index + candidate.length;
+  }
+  return html + escapeHtml(str.slice(last));
 }
 
 // ---------------------------------------------------------------------------
