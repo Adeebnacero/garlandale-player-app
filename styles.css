@@ -991,3 +991,8 @@ a.add-to-calendar-btn { text-decoration: none; }
   .nav-progress::after { animation: gfc-pulse 1.8s ease-in-out infinite; width: 100%; }
   .nav-progress, .nav-overlay { transition: none; }
 }
+
+/* Back link at the top of pages reached from Home (e.g. Loyalty) */
+.page-back { display: inline-flex; align-items: center; gap: 4px; margin: -8px 0 16px; color: var(--indigo); font: 700 13.5px var(--font-sans); text-decoration: none; }
+.page-back svg { width: 18px; height: 18px; }
+.page-back:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; border-radius: 4px; }
