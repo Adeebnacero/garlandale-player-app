@@ -39,6 +39,7 @@
     <input type="password" id="password" placeholder="••••••••" required />
     <button type="submit" id="submit-btn">Sign in</button>
   </form>
+  <p class="forgot-link"><a href="reset-password.html" id="forgot-link">Forgot password?</a></p>
 
   <div class="join-divider">New here?</div>
   <a class="join-button" href="signup.html">Join as a supporter</a>
@@ -77,6 +78,12 @@
     document.getElementById('email').value = prefillEmail;
     document.getElementById('password').focus();
   }
+
+  // "Forgot password?" carries over an email already typed in.
+  document.getElementById('forgot-link').addEventListener('click', (e) => {
+    const typed = document.getElementById('email').value.trim();
+    if (typed) { e.preventDefault(); window.location.href = `reset-password.html?email=${encodeURIComponent(typed)}`; }
+  });
 
   // After a supporter deletes their account.
   if (new URLSearchParams(window.location.search).get('deleted')) {

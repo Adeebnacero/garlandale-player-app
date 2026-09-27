@@ -10,6 +10,7 @@
 
 import { cachedFetch, clearUserCache } from './cache.js';
 import { escapeHtml } from './page-shared.js';
+import { renderChangePassword } from './password.js';
 
 /** { type: 'guardian' | 'supporter' | 'none', supporter?, clubEmail } */
 export function loadAccount(SUPABASE_URL, accessToken, userId, { force = false } = {}) {
@@ -187,11 +188,14 @@ export async function startSupporterProfile({ SUPABASE_URL, accessToken, uid, ac
     <p class="login-error" id="sp-error" style="display:none"></p>
     <p class="supporter-saved" id="sp-saved" role="status" style="display:none">Saved.</p>
     <button type="button" class="supporter-primary" id="sp-save">Save changes</button>
+    <div id="sp-password"></div>
     <div class="card" style="margin-top:22px">
       <p class="card-label">Account</p>
       <p class="supporter-note" style="margin-top:-4px">Deleting your account removes your login and details. Past shop orders are kept for the club’s records.</p>
       <button type="button" class="supporter-danger" id="sp-delete">Delete my account</button>
     </div>`;
+
+  renderChangePassword(document.getElementById('sp-password'), supabase, s.email);
 
   const err = document.getElementById('sp-error');
   const saved = document.getElementById('sp-saved');

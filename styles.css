@@ -1130,3 +1130,20 @@ a.add-to-calendar-btn { text-decoration: none; }
 .install-guide.share-top .install-guide-card { top: calc(48px + env(safe-area-inset-top, 0px)); }
 @keyframes install-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
 @media (prefers-reduced-motion: reduce) { .install-guide-arrow { animation: none; } }
+
+/* =========================================================
+   Passwords (reset-password.html, password.js)
+   ========================================================= */
+.forgot-link { text-align: right; margin: 10px 0 0; font-size: 13px; }
+.forgot-link a { color: var(--gold); font-weight: 700; }
+.password-card { margin-top: 22px; }
+.password-form label { display: block; font-size: 13px; font-weight: 700; margin: 0 0 6px; }
+.password-form input { width: 100%; box-sizing: border-box; padding: 11px 13px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--card); font: 500 15px var(--font-sans); color: var(--ink); margin-bottom: 12px; }
+.password-form input:focus { outline: none; border-color: var(--indigo); }
+.password-msg { font-size: 13px; font-weight: 700; color: var(--danger); margin: 0 0 10px; }
+.password-msg.ok { color: var(--green); }
+.password-btn { display: block; width: 100%; padding: 12px 0; border-radius: var(--radius-btn); border: 1.5px solid var(--indigo); background: none; color: var(--indigo); font: 700 14px var(--font-sans); cursor: pointer; }
+.password-btn:disabled { opacity: 0.6; cursor: wait; }
+.password-hint { font-size: 12.5px; color: var(--inkSoft); margin: 10px 0 0; }
+.password-hint a { color: var(--indigo); font-weight: 700; }
+.login-box .install-btn { margin-top: 6px; }

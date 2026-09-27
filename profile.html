@@ -162,6 +162,7 @@
   } from './page-shared.js';
   import { setupInstall } from './install.js';
   import { supporterGate, startSupporterProfile } from './supporter.js';
+  import { renderChangePassword } from './password.js';
 
   let selectedPlayerId = null;
 
@@ -228,6 +229,8 @@
 
     loadActiveStatus(SUPABASE_URL, accessToken, uid, selectedPlayerId);
     loadProfile(accessToken, uid, selectedPlayerId);
+    // Change password, below the profile details.
+    renderChangePassword(document.querySelector('main .card').parentNode, supabase, data.session.user.email);
     }
   }
 
