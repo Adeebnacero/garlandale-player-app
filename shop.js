@@ -656,7 +656,7 @@ registerServiceWorker();
 setupDrawer();
 setupRefreshAndSignOut(supabase, uid);
 loadNoticeBadge(SUPABASE_URL, token, uid);
-updateShopNav(SUPABASE_URL, token, uid);
+updateShopNav(SUPABASE_URL, token, uid, { onShopPage: true });
 setupNavigationFeedback();
 setupStickyHeader();
 

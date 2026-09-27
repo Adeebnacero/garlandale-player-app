@@ -1009,3 +1009,26 @@ a.add-to-calendar-btn { text-decoration: none; }
 }
 .home-page header:not(.hero-header).is-scrolled { box-shadow: 0 2px 12px rgba(28, 23, 48, 0.22); }
 @media (prefers-reduced-motion: reduce) { .home-page header:not(.hero-header) { transition: none; } }
+
+/* =========================================================
+   Home banner (one at a time, posted in Club Management ->
+   Messages -> Home banners) and the "New" label on the Shop tab
+   ========================================================= */
+.home-banner { position: relative; background: linear-gradient(135deg, var(--indigo) 0%, var(--indigoSoft) 100%); color: var(--paper); border-radius: var(--radius-card); padding: 16px 16px 14px; margin: 0 0 18px; overflow: hidden; }
+.home-banner::after { content: ""; position: absolute; right: -40px; top: -40px; width: 140px; height: 140px; border-radius: 50%; background: rgba(212, 160, 23, 0.14); pointer-events: none; }
+.home-banner-pill { display: inline-block; background: var(--gold); color: var(--indigo); font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; border-radius: 999px; padding: 3px 9px; margin-bottom: 8px; }
+.home-banner h2 { font-family: var(--font-display); text-transform: uppercase; font-size: 21px; line-height: 1.1; margin: 0 0 4px; padding-right: 36px; overflow-wrap: anywhere; font-weight: 400; }
+.home-banner p { margin: 0 0 12px; font-size: 13.5px; line-height: 1.45; opacity: .92; white-space: pre-wrap; overflow-wrap: anywhere; }
+.home-banner p .notice-link { color: var(--gold); }
+.home-banner-photo { margin: 0 0 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.08); overflow: hidden; position: relative; z-index: 1; }
+.home-banner-photo img { display: block; width: 100%; max-height: 200px; object-fit: contain; }
+.home-banner-strip { display: flex; gap: 8px; margin-bottom: 14px; position: relative; z-index: 1; }
+.home-banner-strip span { width: 64px; height: 64px; border-radius: 12px; background: #fff; overflow: hidden; }
+.home-banner-strip img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.home-banner-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--gold); color: var(--indigo); border-radius: 12px; padding: 11px 16px; font: 700 14px var(--font-sans); text-decoration: none; position: relative; z-index: 1; }
+.home-banner-close { position: absolute; top: 8px; right: 8px; z-index: 2; width: 32px; height: 32px; border: 0; background: rgba(255, 255, 255, 0.12); color: var(--paper); border-radius: 50%; font-size: 18px; line-height: 1; cursor: pointer; }
+.home-banner-btn:focus-visible, .home-banner-close:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+.bottom-nav a { position: relative; }
+.nav-new { position: absolute; top: -4px; left: 50%; margin-left: 4px; background: var(--gold); color: var(--indigo); font-size: 8.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; border-radius: 999px; padding: 1px 5px; line-height: 1.4; pointer-events: none; }
+.nav-new[hidden] { display: none; }

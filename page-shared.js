@@ -496,23 +496,107 @@ export function currentNotices(notices) {
 // in and out), then checks get-shop?summary=1 in the background, so
 // switching the shop on or off in Club Management shows up the next time
 // a page opens. Non-critical: if the check fails, nothing changes.
-export async function updateShopNav(SUPABASE_URL, accessToken, userId) {
+export async function updateShopNav(SUPABASE_URL, accessToken, userId, { onShopPage = false } = {}) {
   const key = `gfc_shop_open_${userId}`;
   const apply = (open) => {
     document.querySelectorAll('[data-shop-nav]').forEach((el) => { el.style.display = open ? 'flex' : 'none'; });
+    document.querySelectorAll('[data-shop-tile]').forEach((el) => { el.style.display = open ? 'block' : 'none'; });
   };
   try { apply(localStorage.getItem(key) === '1'); } catch { /* storage unavailable */ }
+  let open = false;
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/get-shop?summary=1`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!res.ok) return;
     const body = await res.json();
-    apply(!!body.open);
-    try { localStorage.setItem(key, body.open ? '1' : '0'); } catch { /* storage unavailable */ }
+    open = !!body.open;
+    apply(open);
+    try { localStorage.setItem(key, open ? '1' : '0'); } catch { /* storage unavailable */ }
   } catch {
-    // Offline or not deployed yet - keep whatever is showing.
+    return; // Offline or not deployed yet - keep whatever is showing.
   }
+  if (open) updateShopNewLabel(SUPABASE_URL, accessToken, userId, onShopPage);
+}
+
+// "New" on the Shop tab, while a running shop banner asks for it (Club
+// Management -> Messages -> Home banners). It clears for this guardian as
+// soon as they open the shop, and comes back only for a different banner.
+async function updateShopNewLabel(SUPABASE_URL, accessToken, userId, onShopPage) {
+  const seenKey = `gfc_shop_new_seen_${userId}`;
+  let body;
+  try { body = await loadMyBanners(SUPABASE_URL, accessToken, userId); } catch { return; }
+  const id = body && body.shopNewId;
+  if (id && onShopPage) { try { localStorage.setItem(seenKey, id); } catch { /* storage unavailable */ } }
+  let seen = null;
+  try { seen = localStorage.getItem(seenKey); } catch { /* storage unavailable */ }
+  const show = !!id && seen !== id;
+  document.querySelectorAll('[data-shop-new]').forEach((el) => { el.hidden = !show; });
+}
+
+// ---------------------------------------------------------------------------
+// Home banners (posted in Club Management -> Messages -> Home banners).
+// One shows at a time: the newest running banner this guardian hasn't
+// dismissed. Dismissing is remembered on this phone.
+// ---------------------------------------------------------------------------
+export function loadMyBanners(SUPABASE_URL, accessToken, userId) {
+  return cachedFetch(userId, 'get-my-banners', async () => {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-banners`, { headers: { Authorization: `Bearer ${accessToken}` } });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Could not load banners');
+    return json;
+  });
+}
+
+const dismissedKey = (userId) => `gfc_banner_dismissed_${userId}`;
+function dismissedBanners(userId) {
+  try { return JSON.parse(localStorage.getItem(dismissedKey(userId)) || '[]'); } catch { return []; }
+}
+function dismissBanner(userId, id) {
+  const list = dismissedBanners(userId).filter((x) => x !== id);
+  list.push(id);
+  try { localStorage.setItem(dismissedKey(userId), JSON.stringify(list.slice(-50))); } catch { /* storage unavailable */ }
+}
+
+function safeHttps(url) {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' && !u.username && !u.password && !/["'<>`\s]/.test(u.href) ? u.href : null;
+  } catch { return null; }
+}
+
+function bannerButtonHtml(button) {
+  if (!button) return '';
+  const inner = `${escapeHtml(button.text)} <span aria-hidden="true">›</span>`;
+  const pages = { shop: 'shop.html', fixtures: 'fixtures.html', notices: 'notices.html' };
+  if (pages[button.kind]) return `<a class="home-banner-btn" href="${pages[button.kind]}">${inner}</a>`;
+  const url = button.kind === 'directions' ? safeMapsLink(button.url) : safeHttps(button.url);
+  if (!url) return '';
+  return `<a class="home-banner-btn" href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">${inner}</a>`;
+}
+
+/** Fills `container` with the banner to show now, or empties it. */
+export async function renderHomeBanner(container, SUPABASE_URL, accessToken, userId) {
+  if (!container) return;
+  let body;
+  try { body = await loadMyBanners(SUPABASE_URL, accessToken, userId); } catch { container.innerHTML = ''; return; }
+  const dismissed = new Set(dismissedBanners(userId));
+  const b = (body.banners || []).find((x) => !dismissed.has(x.id));
+  if (!b) { container.innerHTML = ''; return; }
+  container.innerHTML = `
+    <section class="home-banner" aria-label="${escapeAttr(b.title)}">
+      <button class="home-banner-close" type="button" aria-label="Dismiss this banner">×</button>
+      <span class="home-banner-pill">New</span>
+      <h2>${escapeHtml(b.title)}</h2>
+      ${b.message ? `<p>${linkifyText(b.message)}</p>` : ''}
+      ${b.photoUrl ? `<div class="home-banner-photo"><img src="${escapeAttr(b.photoUrl)}" alt="" loading="lazy"></div>` : ''}
+      ${b.productPhotos && b.productPhotos.length ? `<div class="home-banner-strip" aria-hidden="true">${b.productPhotos.map((u) => `<span><img src="${escapeAttr(u)}" alt="" loading="lazy"></span>`).join('')}</div>` : ''}
+      ${bannerButtonHtml(b.button)}
+    </section>`;
+  container.querySelector('.home-banner-close').addEventListener('click', () => {
+    dismissBanner(userId, b.id);
+    renderHomeBanner(container, SUPABASE_URL, accessToken, userId); // show the next one, if any
+  });
 }
 
 export function escapeHtml(str) {

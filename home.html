@@ -84,6 +84,7 @@
 
   <main>
     <div class="child-tabs" id="child-tabs" style="display:none;"></div>
+    <div id="home-banner"></div>
 
     <p id="payment-status-banner" style="display:none; text-align:center; font-size:13px; padding:10px 14px; border-radius:8px; margin: 0 0 16px;"></p>
 
@@ -96,6 +97,10 @@
         <span class="tile-badge" id="notices-badge" style="display:none;"></span>
         <span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0112 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M9.5 20a2.5 2.5 0 005 0"/></svg></span>
         <span class="tile-label">Notices</span>
+      </a>
+      <a class="tile" href="shop.html" data-shop-tile style="display:none;">
+        <span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 016 0"/></svg></span>
+        <span class="tile-label">Shop</span>
       </a>
       <a class="tile" href="profile.html">
         <span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></span>
@@ -175,6 +180,7 @@
     </a>
     <a href="shop.html" data-shop-nav style="display:none;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 016 0"/></svg>
+      <span class="nav-new" data-shop-new hidden>New</span>
       <span>Shop</span>
       <span class="nav-indicator"></span>
     </a>
@@ -198,7 +204,7 @@
     safeMapsLink, locationButtonsHtml, locationMapBoxHtml, handleShowMapClick,
     linkifyText,
     updateShopNav, setupNavigationFeedback,
-    upcomingFixtures,
+    upcomingFixtures, renderHomeBanner,
   } from './page-shared.js';
 
   const loading = document.getElementById('loading');
@@ -340,6 +346,7 @@
     // currently selected in the switcher below.
     loadNoticeBadge(SUPABASE_URL, accessToken, uid);
     updateShopNav(SUPABASE_URL, accessToken, uid);
+    renderHomeBanner(document.getElementById('home-banner'), SUPABASE_URL, accessToken, uid);
     setupNavigationFeedback();
     loadTraining(accessToken, uid);
 
