@@ -18,6 +18,7 @@ import {
   escapeHtml, escapeAttr, linkifyText, updateShopNav, setupNavigationFeedback, startNavigationFeedback, setupStickyHeader,
 } from './page-shared.js';
 import { supporterGate } from './supporter.js';
+import { setupInstall } from './install.js';
 
 const loading = document.getElementById('loading');
 const app = document.getElementById('app');
@@ -659,6 +660,7 @@ setupRefreshAndSignOut(supabase, uid);
 loadNoticeBadge(SUPABASE_URL, token, uid);
 updateShopNav(SUPABASE_URL, token, uid, { onShopPage: true });
 setupNavigationFeedback();
+setupInstall();
 setupStickyHeader();
 
 // Guardian's name and phone from the linked player's record (loaded

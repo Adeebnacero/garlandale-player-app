@@ -1,12 +1,25 @@
 {
+  "id": "/home.html",
   "name": "Garlandale FC Player Portal",
   "short_name": "Garlandale FC",
+  "description": "Fixtures, notices, fees and the club shop for Garlandale Football Club players, guardians and supporters.",
   "start_url": "./home.html",
+  "scope": "./",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#241a45",
   "theme_color": "#241a45",
+  "lang": "en-ZA",
+  "categories": ["sports"],
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "screenshots": [
+    { "src": "images/screenshots/fixtures.jpg", "sizes": "780x1688", "type": "image/jpeg", "form_factor": "narrow", "label": "Upcoming fixtures, with calendar and directions" },
+    { "src": "images/screenshots/notices.jpg", "sizes": "780x1688", "type": "image/jpeg", "form_factor": "narrow", "label": "Club notices" },
+    { "src": "images/screenshots/shop.jpg", "sizes": "780x1688", "type": "image/jpeg", "form_factor": "narrow", "label": "The club shop" }
   ]
 }

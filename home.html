@@ -10,6 +10,15 @@
 <link rel="icon" type="image/png" href="icons/favicon.png" />
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
 <link rel="stylesheet" href="styles.css" />
+<script>
+  // Android announces "this app can be installed" once, early; keep it for
+  // the Install button (see install.js).
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    window.__gfcInstallPrompt = e;
+    window.dispatchEvent(new Event('gfc-installable'));
+  });
+</script>
 </head>
 <script defer src="/_vercel/insights/script.js"></script>
 <body class="home-page has-bottom-nav">
@@ -74,6 +83,7 @@
       <div class="drawer-header">
         <span>More options</span>
       </div>
+      <a class="drawer-item" href="#" data-install-menu style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>Install the app</a>
       <a class="drawer-item" href="loyalty.html" data-loyalty-nav style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-4-6.3 4 1.7-7-5.4-4.7 7.1-.6z"/></svg>Loyalty</a>
       <a class="drawer-item" href="payments.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Payment history</a>
       <div class="drawer-divider"></div>
@@ -84,6 +94,7 @@
 
   <main>
     <div class="child-tabs" id="child-tabs" style="display:none;"></div>
+    <div id="install-slot"></div>
     <div id="home-banner"></div>
 
     <p id="payment-status-banner" style="display:none; text-align:center; font-size:13px; padding:10px 14px; border-radius:8px; margin: 0 0 16px;"></p>
@@ -206,6 +217,7 @@
     updateShopNav, setupNavigationFeedback,
     upcomingFixtures, renderHomeBanner,
   } from './page-shared.js';
+  import { setupInstall } from './install.js';
   import { supporterGate, startSupporterHome } from './supporter.js';
 
   const loading = document.getElementById('loading');
@@ -349,6 +361,7 @@
     updateShopNav(SUPABASE_URL, accessToken, uid);
     renderHomeBanner(document.getElementById('home-banner'), SUPABASE_URL, accessToken, uid);
     setupNavigationFeedback();
+    setupInstall({ card: document.getElementById('install-slot') });
     loadTraining(accessToken, uid);
 
     // Supporters (fans without a player) get their own Home; guardians
