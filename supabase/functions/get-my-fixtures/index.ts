@@ -18,6 +18,7 @@
 // just what's relevant for display is this endpoint's job.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { saDate } from "../_shared/dates.js";
 import { buildCorsHeaders } from "../_shared/cors.js";
 import { computeAgeGroup } from "../_shared/billing.js";
 import { checkRateLimit } from "../_shared/rate-limit.js";
@@ -88,7 +89,7 @@ Deno.serve(async (req) => {
 
   const myAgeGroup = (player.age_group_override || computeAgeGroup(player.dob)).trim().toLowerCase();
 
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const today = saDate(); // YYYY-MM-DD in South Africa (the function itself runs in UTC)
 
   const { data: matches, error: matchesErr } = await adminClient
     .from("matches")

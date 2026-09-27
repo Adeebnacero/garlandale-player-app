@@ -14,6 +14,7 @@
 // them, matching the combined badge logic exactly.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { saDate, isCurrentNotice } from "../_shared/dates.js";
 import { buildCorsHeaders } from "../_shared/cors.js";
 import { checkRateLimit } from "../_shared/rate-limit.js";
 import { computeAgeGroup } from "../_shared/billing.js";
@@ -98,7 +99,11 @@ Deno.serve(async (req) => {
 
   // A notice with no target_age_group (or 'ALL') is for everyone;
   // anything else must match at least one linked child's own age group.
+  // Birthday notices are only for their day (South African time), even if
+  // the daily clean-up hasn't removed yesterday's yet.
+  const today = saDate();
   const relevant = (notices ?? [])
+    .filter((n) => isCurrentNotice(n, today))
     .map((n) => {
       const target = (n.target_age_group ?? "").trim().toLowerCase();
       const forChildren = childMeta.filter(
