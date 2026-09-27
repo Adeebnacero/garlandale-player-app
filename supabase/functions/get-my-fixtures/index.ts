@@ -19,6 +19,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { saDate } from "../_shared/dates.js";
+import { approvedSupporter } from "../_shared/account.js";
 import { buildCorsHeaders } from "../_shared/cors.js";
 import { computeAgeGroup } from "../_shared/billing.js";
 import { checkRateLimit } from "../_shared/rate-limit.js";
@@ -53,6 +54,37 @@ Deno.serve(async (req) => {
   // for (a guardian's kids in different age groups see different lists).
   const requestedPlayerId = new URL(req.url).searchParams.get("player_id");
   const resolved = await resolveRequestedPlayerId(callerClient, requestedPlayerId);
+
+  // Not a guardian: an approved supporter sees every team's upcoming
+  // fixtures (they're public through the federation anyway).
+  if (!resolved.ok && resolved.status === 403 && !requestedPlayerId) {
+    const supporterClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    if (await approvedSupporter(supporterClient, userData.user.id)) {
+      const rlS = await checkRateLimit(supporterClient, userData.user.id, "get-my-fixtures");
+      if (!rlS.allowed) {
+        return new Response(JSON.stringify({ error: "Too many requests - please slow down." }), {
+          status: 429, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      const { data: all, error: allErr } = await supporterClient
+        .from("matches")
+        .select("id, opponent, home_away, venue, match_date, kickoff_time, division, competition, age_group, location_link, location_embed")
+        .gte("match_date", saDate())
+        .order("match_date", { ascending: true })
+        .order("kickoff_time", { ascending: true })
+        .limit(80);
+      if (allErr) {
+        console.error("get-my-fixtures: failed to load fixtures for supporter", allErr);
+        return new Response(JSON.stringify({ error: "Could not load fixtures - please try again." }), {
+          status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ fixtures: all ?? [], supporter: true }), {
+        status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+  }
+
   if (!resolved.ok) {
     return new Response(JSON.stringify({ error: resolved.error }), {
       status: resolved.status,

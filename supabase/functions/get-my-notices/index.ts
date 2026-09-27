@@ -15,6 +15,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { saDate, isCurrentNotice } from "../_shared/dates.js";
+import { approvedSupporter, supporterNoticeFilter } from "../_shared/account.js";
 import { buildCorsHeaders } from "../_shared/cors.js";
 import { checkRateLimit } from "../_shared/rate-limit.js";
 import { computeAgeGroup } from "../_shared/billing.js";
@@ -45,6 +46,38 @@ Deno.serve(async (req) => {
 
   const { data: playerIds, error: rpcErr } = await callerClient.rpc("current_player_ids");
   if (rpcErr || !playerIds || playerIds.length === 0) {
+    // Not a guardian: an approved supporter sees notices posted with
+    // "Also show to supporters" (never birthday notices). Read-tracking is
+    // per player, so for supporters every notice counts as read.
+    const supporterClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    if (await approvedSupporter(supporterClient, userData.user.id)) {
+      const rlS = await checkRateLimit(supporterClient, userData.user.id, "get-my-notices");
+      if (!rlS.allowed) {
+        return new Response(JSON.stringify({ error: "Too many requests - please slow down." }), {
+          status: 429, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      const { data: sn, error: snErr } = await supporterClient
+        .from("notices")
+        .select("id, title, body, category, pinned, posted_at, location_link, location_embed, show_to_supporters")
+        .eq("show_to_supporters", true)
+        .order("pinned", { ascending: false })
+        .order("posted_at", { ascending: false })
+        .limit(50);
+      if (snErr) {
+        console.error("get-my-notices: failed to load supporter notices", snErr);
+        return new Response(JSON.stringify({ error: "Could not load notices - please try again." }), {
+          status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      const list = (sn ?? []).filter(supporterNoticeFilter).map((n) => ({
+        id: n.id, title: n.title, body: n.body, category: n.category, pinned: n.pinned, posted_at: n.posted_at,
+        location_link: n.location_link, location_embed: n.location_embed, for_children: [], is_read: true,
+      }));
+      return new Response(JSON.stringify({ notices: list, supporter: true }), {
+        status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
     return new Response(JSON.stringify({ error: "No linked player accounts for this user" }), {
       status: 403,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },

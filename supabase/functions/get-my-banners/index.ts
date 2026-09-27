@@ -15,6 +15,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { saDate } from "../_shared/dates.js";
 import { pickBanners, bannerView } from "../_shared/banners.js";
+import { approvedSupporter } from "../_shared/account.js";
 import { buildCorsHeaders } from "../_shared/cors.js";
 import { checkRateLimit } from "../_shared/rate-limit.js";
 import { computeAgeGroup } from "../_shared/billing.js";
@@ -40,17 +41,21 @@ Deno.serve(async (req) => {
   if (userErr || !userData?.user) return json({ error: "Not authenticated" }, 401);
 
   const { data: playerIds, error: rpcErr } = await callerClient.rpc("current_player_ids");
-  if (rpcErr || !playerIds || playerIds.length === 0) return json({ banners: [], shopNewId: null });
-
+  const isGuardian = !rpcErr && !!playerIds && playerIds.length > 0;
   const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  // Approved supporters see banners posted with "Also show to supporters".
+  const isSupporter = !isGuardian && !!(await approvedSupporter(adminClient, userData.user.id));
+  if (!isGuardian && !isSupporter) return json({ banners: [], shopNewId: null });
   const rl = await checkRateLimit(adminClient, userData.user.id, "get-my-banners", { maxRequests: 60, windowSeconds: 60 });
   if (!rl.allowed) return json({ error: "Too many requests - please slow down." }, 429);
 
   const today = saDate();
   const [playersRes, bannersRes, settingsRes] = await Promise.all([
-    adminClient.from("players").select("id, dob, age_group_override").in("id", playerIds),
+    isGuardian
+      ? adminClient.from("players").select("id, dob, age_group_override").in("id", playerIds)
+      : Promise.resolve({ data: [], error: null }),
     adminClient.from("home_banners")
-      .select("id, title, message, button_kind, button_label, link_url, location_link, photo_path, show_product_strip, mark_shop_new, starts_on, ends_on, target_age_group, created_at")
+      .select("id, title, message, button_kind, button_label, link_url, location_link, photo_path, show_product_strip, mark_shop_new, starts_on, ends_on, target_age_group, created_at, show_to_supporters")
       .lte("starts_on", today).gte("ends_on", today).limit(50),
     adminClient.from("store_settings").select("shop_open").eq("id", 1).maybeSingle(),
   ]);
@@ -61,7 +66,11 @@ Deno.serve(async (req) => {
 
   const ageGroups = (playersRes.data ?? []).map((p) => (p.age_group_override || computeAgeGroup(p.dob)).trim().toLowerCase());
   const shopOpen = !!settingsRes.data?.shop_open;
-  const picked = pickBanners(bannersRes.data ?? [], { ageGroups, today, shopOpen });
+  const candidates = isGuardian
+    ? (bannersRes.data ?? [])
+    // Supporters: only banners marked for them, whatever age group they target.
+    : (bannersRes.data ?? []).filter((b) => b.show_to_supporters).map((b) => ({ ...b, target_age_group: "ALL" }));
+  const picked = pickBanners(candidates, { ageGroups, today, shopOpen });
 
   let productPhotos: string[] = [];
   if (picked.some((b) => b.button_kind === "shop" && b.show_product_strip)) {

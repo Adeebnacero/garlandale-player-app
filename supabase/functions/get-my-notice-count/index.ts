@@ -16,6 +16,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { saDate, isCurrentNotice } from "../_shared/dates.js";
+import { approvedSupporter } from "../_shared/account.js";
 import { buildCorsHeaders } from "../_shared/cors.js";
 import { checkRateLimit } from "../_shared/rate-limit.js";
 import { computeAgeGroup } from "../_shared/billing.js";
@@ -46,6 +47,12 @@ Deno.serve(async (req) => {
 
   const { data: playerIds, error: rpcErr } = await callerClient.rpc("current_player_ids");
   if (rpcErr || !playerIds || playerIds.length === 0) {
+    // Approved supporters: notices count as read (see get-my-notices).
+    if (await approvedSupporter(createClient(SUPABASE_URL, SERVICE_ROLE_KEY), userData.user.id)) {
+      return new Response(JSON.stringify({ unread: 0 }), {
+        status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
     return new Response(JSON.stringify({ error: "No linked player accounts for this user" }), {
       status: 403,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
