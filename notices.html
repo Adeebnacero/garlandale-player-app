@@ -117,6 +117,7 @@
     loadMyPlayers, resolveSelectedPlayer,
     getSessionOrTimeout, showSessionCheckError,
     updateShopNav, setupNavigationFeedback, setupStickyHeader,
+    currentNotices,
   } from './page-shared.js';
 
   const loading = document.getElementById('loading');
@@ -188,6 +189,9 @@
       });
 
       noticesLoading.style.display = 'none';
+
+      // A saved copy can be up to an hour old: birthday notices are for their day only.
+      body.notices = currentNotices(body.notices);
 
       if (!body.notices || body.notices.length === 0) {
         noticesEmpty.style.display = 'block';

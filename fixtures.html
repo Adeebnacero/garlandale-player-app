@@ -122,6 +122,7 @@
     getSessionOrTimeout, showSessionCheckError,
     downloadFixtureICS,
     updateShopNav, setupNavigationFeedback, setupStickyHeader,
+    upcomingFixtures,
   } from './page-shared.js';
 
   const loading = document.getElementById('loading');
@@ -206,6 +207,8 @@
       });
 
       fixturesLoading.style.display = 'none';
+      // A saved copy can be up to an hour old: drop matches whose day has passed.
+      body.fixtures = upcomingFixtures(body.fixtures);
 
       if (!body.fixtures || body.fixtures.length === 0) {
         fixturesEmpty.style.display = 'block';

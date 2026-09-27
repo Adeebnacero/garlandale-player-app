@@ -6,7 +6,7 @@
 // service worker registration, and HTML-escaping. Extracted here so a fix
 // only has to happen in one place instead of five.
 
-import { cachedFetch, clearUserCache } from './cache.js';
+import { cachedFetch, clearUserCache, saDate } from './cache.js';
 
 // ---------------------------------------------------------------------------
 // Add-to-calendar (.ics) support for fixtures. Pure client-side - no
@@ -471,6 +471,24 @@ export function setupStickyHeader() {
   window.addEventListener('scroll', update, { passive: true });
   update();
   document.documentElement.style.scrollPaddingTop = `${header.offsetHeight + 8}px`;
+}
+
+// ---------------------------------------------------------------------------
+// Keeping saved lists current. The app reuses a saved copy of fixtures and
+// notices for up to an hour (see cache.js), so these trim anything that
+// has gone out of date since it was saved. Dates are South African.
+// ---------------------------------------------------------------------------
+
+/** Fixtures from today onwards (a match stays listed all day on match day). */
+export function upcomingFixtures(fixtures) {
+  const today = saDate();
+  return (fixtures || []).filter((f) => !f.match_date || f.match_date >= today);
+}
+
+/** Notices without birthday notices from earlier days (they're for the day only). */
+export function currentNotices(notices) {
+  const today = saDate();
+  return (notices || []).filter((n) => n.category !== 'birthday' || (n.posted_at && saDate(n.posted_at) === today));
 }
 
 // Shows the Shop tab in the bottom navigation only while the club shop is

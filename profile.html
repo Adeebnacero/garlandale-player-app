@@ -283,7 +283,7 @@
 
       // The saved data is now stale in cache - bust just this one entry so
       // the next visit to this page (or a reload) shows the real values,
-      // rather than waiting for the next 10am/5pm refresh window.
+      // rather than waiting for the saved copy to expire.
       invalidateCacheKey(sessionData.session.user.id, `get-my-profile:${selectedPlayerId}`);
 
       saveSuccess.style.display = 'block';
