@@ -206,6 +206,7 @@
     updateShopNav, setupNavigationFeedback,
     upcomingFixtures, renderHomeBanner,
   } from './page-shared.js';
+  import { supporterGate, startSupporterHome } from './supporter.js';
 
   const loading = document.getElementById('loading');
   const app = document.getElementById('app');
@@ -350,6 +351,12 @@
     setupNavigationFeedback();
     loadTraining(accessToken, uid);
 
+    // Supporters (fans without a player) get their own Home; guardians
+    // carry on exactly as before.
+    const gate = await supporterGate(SUPABASE_URL, accessToken, uid);
+    if (gate.supporter) {
+      startSupporterHome({ SUPABASE_URL, accessToken, uid, account: gate.account, upcomingFixtures });
+    } else if (!gate.redirected) {
     let players = [];
     try {
       const playersBody = await loadMyPlayers(SUPABASE_URL, accessToken, uid);
@@ -378,6 +385,7 @@
 
     if (paymentParam === 'success') {
       setTimeout(() => loadBalance(accessToken, uid, selectedPlayerId, { force: true }), 4000);
+    }
     }
   }
 

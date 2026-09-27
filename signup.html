@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Garlandale FC Player Portal — Join as a supporter</title>
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#241a45" />
+<script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
+<link rel="icon" type="image/png" href="icons/favicon.png" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+    <script defer src="/_vercel/insights/script.js"></script>
+<body class="login-page">
+
+<div class="login-box" id="signup-box" aria-live="polite">
+  <p class="login-note">Loading…</p>
+</div>
+
+<div class="signup-sheet" id="privacy-sheet" hidden>
+  <div class="signup-sheet-card" role="dialog" aria-modal="true" aria-labelledby="privacy-title">
+    <h2 id="privacy-title">Privacy notice</h2>
+    <p>Garlandale Football Club stores your name, email address and cellphone number to run your supporter account, and the details of any orders you place in the club shop.</p>
+    <p>We use your details only to run your account and to contact you about the club and your orders. We don’t sell them or share them with anyone else, except our card payment provider (Yoco) when you pay in the shop.</p>
+    <p>You can update your details in Profile, and delete your account there at any time. Past shop orders are kept for the club’s financial records.</p>
+    <p>Questions about your information? Contact the club.</p>
+    <button type="button" id="privacy-close">Close</button>
+  </div>
+</div>
+
+<script type="module" src="signup.js"></script>
+</body>
+</html>

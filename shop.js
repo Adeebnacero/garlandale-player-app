@@ -17,6 +17,7 @@ import {
   loadMyPlayers, resolveSelectedPlayer, getSessionOrTimeout, showSessionCheckError,
   escapeHtml, escapeAttr, linkifyText, updateShopNav, setupNavigationFeedback, startNavigationFeedback, setupStickyHeader,
 } from './page-shared.js';
+import { supporterGate } from './supporter.js';
 
 const loading = document.getElementById('loading');
 const app = document.getElementById('app');
@@ -664,6 +665,14 @@ setupStickyHeader();
 // below), used to pre-fill checkout the first time.
 (async () => {
   try {
+    // Supporters: their own details; unapproved ones go to the waiting screen.
+    const gate = await supporterGate(SUPABASE_URL, token, uid);
+    if (gate.redirected) return;
+    if (gate.supporter) {
+      profileDefaults.name = gate.account.supporter.fullName || '';
+      profileDefaults.phone = gate.account.supporter.phone || '';
+      return;
+    }
     const playersBody = await loadMyPlayers(SUPABASE_URL, token, uid);
     const players = playersBody.players || [];
     const playerId = resolveSelectedPlayer(uid, players);

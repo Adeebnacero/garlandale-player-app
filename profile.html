@@ -150,6 +150,7 @@
     getSessionOrTimeout, showSessionCheckError,
     updateShopNav, setupNavigationFeedback, setupStickyHeader,
   } from './page-shared.js';
+  import { supporterGate, startSupporterProfile } from './supporter.js';
 
   let selectedPlayerId = null;
 
@@ -186,6 +187,12 @@
     setupNavigationFeedback();
     setupStickyHeader();
 
+    // Supporters get their own profile (details, teams they follow,
+    // delete account); guardians carry on exactly as before.
+    const gate = await supporterGate(SUPABASE_URL, accessToken, uid);
+    if (gate.supporter) {
+      startSupporterProfile({ SUPABASE_URL, accessToken, uid, account: gate.account, supabase });
+    } else if (!gate.redirected) {
     let players = [];
     try {
       const playersBody = await loadMyPlayers(SUPABASE_URL, accessToken, uid);
@@ -209,6 +216,7 @@
 
     loadActiveStatus(SUPABASE_URL, accessToken, uid, selectedPlayerId);
     loadProfile(accessToken, uid, selectedPlayerId);
+    }
   }
 
   async function loadProfile(accessToken, userId, playerId) {

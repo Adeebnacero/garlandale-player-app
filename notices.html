@@ -120,6 +120,7 @@
     updateShopNav, setupNavigationFeedback, setupStickyHeader,
     currentNotices,
   } from './page-shared.js';
+  import { supporterGate } from './supporter.js';
 
   const loading = document.getElementById('loading');
   const app = document.getElementById('app');
@@ -155,8 +156,11 @@
     // nav item's visibility still needs to reflect ONE child's active
     // status though, so it uses whichever child is currently selected
     // elsewhere in the app (persisted from home/profile/fixtures).
+    // Supporters not yet approved go to the waiting screen; approved
+    // supporters get supporter notices from the same function.
+    const gate = await supporterGate(SUPABASE_URL, accessToken, uid);
     let players = [];
-    try {
+    if (!gate.supporter) try {
       const playersBody = await loadMyPlayers(SUPABASE_URL, accessToken, uid);
       players = playersBody.players || [];
     } catch (err) {

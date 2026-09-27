@@ -30,8 +30,11 @@
     <button type="submit" id="submit-btn">Sign in</button>
   </form>
 
+  <div class="join-divider">New here?</div>
+  <a class="join-button" href="signup.html">Join as a supporter</a>
+
   <p class="login-note">
-    Use the email your coach or the club sent your invite to.
+    Players and guardians: use the email your coach or the club sent your invite to.
   </p>
 </div>
 
@@ -58,6 +61,12 @@
   if (prefillEmail) {
     document.getElementById('email').value = prefillEmail;
     document.getElementById('password').focus();
+  }
+
+  // After a supporter deletes their account.
+  if (new URLSearchParams(window.location.search).get('deleted')) {
+    loginError.textContent = 'Your account has been deleted.';
+    loginError.classList.add('visible', 'is-info');
   }
 
   // If already signed in, skip straight to the dashboard.
@@ -93,7 +102,9 @@
       showError(
         error.message === 'Invalid login credentials'
           ? 'Incorrect email or password.'
-          : error.message
+          : /email not confirmed/i.test(error.message)
+            ? 'Please confirm your email address first: tap the link in the email we sent you.'
+            : error.message
       );
       submitBtn.disabled = false;
       submitBtn.textContent = 'Sign in';
