@@ -16,6 +16,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { saDate, isCurrentNotice } from "../_shared/dates.js";
 import { approvedSupporter, supporterNoticeFilter } from "../_shared/account.js";
+import { isForAgeGroup } from "../_shared/audience.js";
 import { buildCorsHeaders } from "../_shared/cors.js";
 import { checkRateLimit } from "../_shared/rate-limit.js";
 import { computeAgeGroup } from "../_shared/billing.js";
@@ -117,7 +118,7 @@ Deno.serve(async (req) => {
 
   const { data: notices, error: noticesErr } = await adminClient
     .from("notices")
-    .select("id, title, body, category, pinned, posted_at, target_age_group, location_link, location_embed")
+    .select("id, title, body, category, pinned, posted_at, target_age_group, target_age_groups, location_link, location_embed")
     .order("pinned", { ascending: false })
     .order("posted_at", { ascending: false })
     .limit(50); // fetch generously; age-group filtering below trims to what's actually relevant
@@ -130,18 +131,15 @@ Deno.serve(async (req) => {
     });
   }
 
-  // A notice with no target_age_group (or 'ALL') is for everyone;
-  // anything else must match at least one linked child's own age group.
+  // A notice for no particular group is for everyone; otherwise at least
+  // one linked child must be in one of its age groups (see _shared/audience.js).
   // Birthday notices are only for their day (South African time), even if
   // the daily clean-up hasn't removed yesterday's yet.
   const today = saDate();
   const relevant = (notices ?? [])
     .filter((n) => isCurrentNotice(n, today))
     .map((n) => {
-      const target = (n.target_age_group ?? "").trim().toLowerCase();
-      const forChildren = childMeta.filter(
-        (c) => target === "" || target === "all" || target === c.ageGroup
-      );
+      const forChildren = childMeta.filter((c) => isForAgeGroup(n, c.ageGroup));
       return { notice: n, forChildren };
     })
     .filter((n) => n.forChildren.length > 0)

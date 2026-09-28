@@ -19,6 +19,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { approvedSupporter } from "../_shared/account.js";
+import { isForAgeGroup } from "../_shared/audience.js";
 import { buildCorsHeaders } from "../_shared/cors.js";
 import { checkRateLimit } from "../_shared/rate-limit.js";
 import { computeAgeGroup } from "../_shared/billing.js";
@@ -101,7 +102,7 @@ Deno.serve(async (req) => {
 
   const { data: notice, error: noticeErr } = await adminClient
     .from("notices")
-    .select("target_age_group")
+    .select("target_age_group, target_age_groups")
     .eq("id", noticeId)
     .single();
 
@@ -112,7 +113,6 @@ Deno.serve(async (req) => {
     });
   }
 
-  const target = (notice.target_age_group ?? "").trim().toLowerCase();
 
   const { data: players, error: playersErr } = await adminClient
     .from("players")
@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
   const relevantPlayerIds = players
     .filter((p) => {
       const ageGroup = (p.age_group_override || computeAgeGroup(p.dob)).trim().toLowerCase();
-      return target === "" || target === "all" || target === ageGroup;
+      return isForAgeGroup(notice, ageGroup);
     })
     .map((p) => p.id);
 
