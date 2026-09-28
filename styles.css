@@ -1147,3 +1147,14 @@ a.add-to-calendar-btn { text-decoration: none; }
 .password-hint { font-size: 12.5px; color: var(--inkSoft); margin: 10px 0 0; }
 .password-hint a { color: var(--indigo); font-weight: 700; }
 .login-box .install-btn { margin-top: 6px; }
+
+/* Change password: folded until tapped (password.js) */
+details.password-card { padding: 0; }
+.password-summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 18px; cursor: pointer; list-style: none; font-weight: 700; font-size: 15px; color: var(--ink); }
+.password-summary::-webkit-details-marker { display: none; }
+.password-summary::after { content: "›"; font-size: 22px; line-height: 1; color: var(--inkSoft); transition: transform 0.15s; margin-left: auto; }
+details[open] > .password-summary::after { transform: rotate(90deg); }
+.password-summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; border-radius: var(--radius-card); }
+.password-done { color: var(--green); font-size: 12.5px; font-weight: 700; }
+details.password-card .password-form { padding: 0 18px 18px; }
+@media (prefers-reduced-motion: reduce) { .password-summary::after { transition: none; } }

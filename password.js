@@ -28,15 +28,16 @@ export function friendlyPasswordError(message) {
 }
 
 /**
- * Appends a "Change password" card to `container`. Checks the current
- * password (by signing in with it) before setting the new one.
+ * Appends a folded "Change password ›" row to `container`; tapping it opens
+ * the form. Checks the current password (by signing in with it) before
+ * setting the new one, then folds away again.
  */
 export function renderChangePassword(container, supabase, email) {
   if (!container || !email) return;
-  const card = document.createElement('div');
+  const card = document.createElement('details');
   card.className = 'card password-card';
   card.innerHTML = `
-    <p class="card-label">Change password</p>
+    <summary class="password-summary"><span>Change password</span><span class="password-done" hidden>Password changed</span></summary>
     <form class="password-form" novalidate>
       <label for="pw-current">Current password</label>
       <input id="pw-current" type="password" autocomplete="current-password">
@@ -50,6 +51,12 @@ export function renderChangePassword(container, supabase, email) {
     </form>`;
   container.appendChild(card);
   const form = card.querySelector('form');
+  card.addEventListener('toggle', () => {
+    if (card.open) {
+      card.querySelector('.password-done').hidden = true;
+      card.querySelector('#pw-current').focus();
+    }
+  });
   const msg = card.querySelector('.password-msg');
   const say = (text, ok = false) => { msg.textContent = text; msg.hidden = false; msg.classList.toggle('ok', ok); };
 
@@ -70,6 +77,10 @@ export function renderChangePassword(container, supabase, email) {
       if (error) { say(friendlyPasswordError(error.message)); return; }
       form.reset();
       say('Password changed.', true);
+      // Fold away again, with a note on the closed row.
+      const done = card.querySelector('.password-done');
+      done.hidden = false;
+      setTimeout(() => { card.open = false; msg.hidden = true; }, 1500);
     } catch (err) {
       say(friendlyPasswordError(err && err.message));
     } finally {
