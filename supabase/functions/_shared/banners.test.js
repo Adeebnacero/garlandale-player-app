@@ -17,6 +17,13 @@ Deno.test("only banners running today, for this child, newest first", () => {
   assertEquals(ids, ["u12", "all", "last-day"], "filtered and sorted");
 });
 
+Deno.test("banners for several age groups", () => {
+  const rows = [row({ id: "u7-9", target_age_groups: ["U7", "U8", "U9"], target_age_group: "U7" }), row({ id: "u13", target_age_groups: ["U13"], target_age_group: "U13" })];
+  assertEquals(pickBanners(rows, { ageGroups: ["u8"], today: "2026-09-27", shopOpen: true }).map((b) => b.id), ["u7-9"], "U8 child");
+  assertEquals(pickBanners(rows, { ageGroups: ["u8", "u13"], today: "2026-09-27", shopOpen: true }).length, 2, "family with U8 and U13 sees each once");
+  assertEquals(pickBanners(rows, { ageGroups: ["u11"], today: "2026-09-27", shopOpen: true }).length, 0, "U11 child");
+});
+
 Deno.test("shop banners only while the shop is open", () => {
   const rows = [row({ id: "shop", button_kind: "shop" }), row({ id: "event" })];
   assertEquals(pickBanners(rows, { ageGroups: [], today: "2026-09-27", shopOpen: false }).map((b) => b.id), ["event"], "closed");

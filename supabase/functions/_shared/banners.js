@@ -1,20 +1,20 @@
-// Home banner helpers for the get-my-banners Edge Function. Pure, no
-// imports, tested with: deno test supabase/functions/_shared/
+// Home banner helpers for the get-my-banners Edge Function. Pure, tested
+// with: deno test supabase/functions/_shared/
+
+import { audienceGroups, isForAgeGroup } from "./audience.js";
 
 /**
  * The banners a guardian should see today, newest first: running today
- * (South African dates, inclusive), meant for everyone or for one of their
+ * (South African dates, inclusive), meant for everyone or for any of their
  * children's age groups, and - for shop banners - only while the shop is
  * open. ageGroups are lower-case.
  */
 export function pickBanners(rows, { ageGroups, today, shopOpen }) {
-  const groups = new Set((ageGroups || []).map((g) => String(g).trim().toLowerCase()));
+  const groups = (ageGroups || []).map((g) => String(g).trim().toLowerCase());
   return (rows || [])
     .filter((b) => b.starts_on <= today && b.ends_on >= today)
-    .filter((b) => {
-      const t = String(b.target_age_group || "").trim().toLowerCase();
-      return t === "" || t === "all" || groups.has(t);
-    })
+    // For everyone, or for any of the family's children's age groups.
+    .filter((b) => audienceGroups(b).length === 0 || groups.some((g) => isForAgeGroup(b, g)))
     .filter((b) => b.button_kind !== "shop" || shopOpen)
     .sort((a, b) =>
       String(b.starts_on).localeCompare(String(a.starts_on)) ||
