@@ -56,10 +56,15 @@ Deno.serve(async (req) => {
 
   const verification = await verifyYocoWebhook(rawBody, headers, YOCO_WEBHOOK_SECRET);
   if (!verification.ok) {
-    console.error("yoco-webhook: signature verification failed", verification.reason);
-    // Still 200 - a bad signature will never become valid on retry, and
-    // returning an error status just causes Yoco to keep retrying it.
-    return new Response("signature verification failed", { status: 200 });
+    // Nothing is recorded. The reply is an error (401), not "received":
+    //  - a forged message doesn't come from Yoco, so nobody retries it;
+    //  - a GENUINE Yoco payment only fails here if YOCO_WEBHOOK_SECRET no
+    //    longer matches Yoco's (e.g. after rotating it). An error makes Yoco
+    //    show the failed deliveries in its dashboard and send them again,
+    //    freshly signed, so once the secret is fixed the payments are
+    //    recorded instead of being silently lost.
+    console.error("yoco-webhook: signature verification failed - if these are real Yoco payments, check YOCO_WEBHOOK_SECRET matches the secret in Yoco", verification.reason);
+    return new Response("signature verification failed", { status: 401 });
   }
 
   let event: any;
@@ -103,10 +108,20 @@ Deno.serve(async (req) => {
     .from("players")
     .select("id")
     .eq("id", playerId)
-    .single();
+    .maybeSingle();
 
-  if (playerErr || !player) {
-    console.error("yoco-webhook: player not found for metadata.playerId", { playerId });
+  // A database problem: reply with an error so Yoco resends the payment
+  // later. Resending is safe - the unique payments.reference rule means the
+  // same payment can never be recorded twice.
+  if (playerErr) {
+    console.error("yoco-webhook: couldn't look up the player - Yoco will retry", { playerId, error: playerErr.message });
+    return new Response("temporary error looking up player", { status: 500 });
+  }
+  // The player really doesn't exist (e.g. deleted after paying). Resending
+  // won't help, so acknowledge it - but the money was taken, so log it loudly
+  // for the club to sort out (refund, or record it against the right player).
+  if (!player) {
+    console.error("yoco-webhook: PAYMENT RECEIVED FOR UNKNOWN PLAYER - needs manual action", { playerId, paymentRef, amountCents });
     return new Response("player not found", { status: 200 });
   }
 
@@ -127,8 +142,10 @@ Deno.serve(async (req) => {
     if (insertErr.code === "23505") {
       return new Response("already recorded", { status: 200 });
     }
-    console.error("yoco-webhook: failed to insert payment", insertErr.message);
-    return new Response("failed to record payment", { status: 200 });
+    // Couldn't save it: reply with an error so Yoco resends it later, rather
+    // than a paid fee silently going unrecorded.
+    console.error("yoco-webhook: failed to record fee payment - Yoco will retry", { playerId, paymentRef, error: insertErr.message });
+    return new Response("temporary error recording payment", { status: 500 });
   }
 
   return new Response("ok", { status: 200 });
