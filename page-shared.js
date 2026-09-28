@@ -576,16 +576,13 @@ function bannerButtonHtml(button) {
 }
 
 /** Fills `container` with the banner to show now, or empties it. */
-export async function renderHomeBanner(container, SUPABASE_URL, accessToken, userId) {
-  if (!container) return;
-  let body;
-  try { body = await loadMyBanners(SUPABASE_URL, accessToken, userId); } catch { container.innerHTML = ''; return; }
-  const dismissed = new Set(dismissedBanners(userId));
-  const b = (body.banners || []).find((x) => !dismissed.has(x.id));
-  if (!b) { container.innerHTML = ''; return; }
-  container.innerHTML = `
-    <section class="home-banner" aria-label="${escapeAttr(b.title)}">
-      <button class="home-banner-close" type="button" aria-label="Dismiss this banner">×</button>
+const MAX_HOME_BANNERS = 3;
+
+function bannerSlideHtml(b, i, total) {
+  const slide = total > 1 ? ` aria-roledescription="slide" aria-label="${i + 1} of ${total}: ${escapeAttr(b.title)}"` : ` aria-label="${escapeAttr(b.title)}"`;
+  return `
+    <section class="home-banner${total > 1 ? ' banner-slide' : ''}" data-banner-id="${escapeAttr(b.id)}"${slide}>
+      <button class="home-banner-close" type="button" aria-label="Dismiss this banner" data-dismiss="${escapeAttr(b.id)}">×</button>
       <span class="home-banner-pill">New</span>
       <h2>${escapeHtml(b.title)}</h2>
       ${b.message ? `<p>${linkifyText(b.message)}</p>` : ''}
@@ -593,10 +590,90 @@ export async function renderHomeBanner(container, SUPABASE_URL, accessToken, use
       ${b.productPhotos && b.productPhotos.length ? `<div class="home-banner-strip" aria-hidden="true">${b.productPhotos.map((u) => `<span><img src="${escapeAttr(u)}" alt="" loading="lazy"></span>`).join('')}</div>` : ''}
       ${bannerButtonHtml(b.button)}
     </section>`;
-  container.querySelector('.home-banner-close').addEventListener('click', () => {
-    dismissBanner(userId, b.id);
-    renderHomeBanner(container, SUPABASE_URL, accessToken, userId); // show the next one, if any
+}
+
+/**
+ * Fills `container` with the banners to show now: up to three running
+ * banners this guardian hasn't dismissed, newest first. One banner shows on
+ * its own; two or three become a carousel the person swipes through (it
+ * never moves by itself), with dots underneath and arrows on computers.
+ */
+export async function renderHomeBanner(container, SUPABASE_URL, accessToken, userId, { startAt = 0 } = {}) {
+  if (!container) return;
+  let body;
+  try { body = await loadMyBanners(SUPABASE_URL, accessToken, userId); } catch { container.innerHTML = ''; return; }
+  const dismissed = new Set(dismissedBanners(userId));
+  const list = (body.banners || []).filter((x) => !dismissed.has(x.id)).slice(0, MAX_HOME_BANNERS);
+  if (!list.length) { container.innerHTML = ''; return; }
+
+  if (list.length === 1) {
+    container.innerHTML = bannerSlideHtml(list[0], 0, 1);
+  } else {
+    container.innerHTML = `
+      <div class="banner-carousel" role="region" aria-roledescription="carousel" aria-label="Club news: ${list.length} banners, swipe to see them all">
+        <div class="banner-track" tabindex="0">${list.map((b, i) => bannerSlideHtml(b, i, list.length)).join('')}</div>
+        <button class="banner-arrow prev" type="button" aria-label="Previous banner">‹</button>
+        <button class="banner-arrow next" type="button" aria-label="Next banner">›</button>
+        <div class="banner-dots">${list.map((b, i) => `<button type="button" class="banner-dot" data-go="${i}" aria-label="Show banner ${i + 1} of ${list.length}"></button>`).join('')}</div>
+      </div>`;
+    setupCarousel(container.querySelector('.banner-carousel'), Math.min(startAt, list.length - 1));
+  }
+
+  container.querySelectorAll('[data-dismiss]').forEach((btn) => btn.addEventListener('click', () => {
+    const slides = [...container.querySelectorAll('[data-banner-id]')];
+    const at = slides.findIndex((el) => el.dataset.bannerId === btn.dataset.dismiss);
+    dismissBanner(userId, btn.dataset.dismiss);
+    // Redraw (the next running banner, if any, takes its place) and stay
+    // roughly where the person was.
+    renderHomeBanner(container, SUPABASE_URL, accessToken, userId, { startAt: Math.max(0, at) });
+  }));
+}
+
+function setupCarousel(root, startAt) {
+  const track = root.querySelector('.banner-track');
+  const slides = [...track.children];
+  const dots = [...root.querySelectorAll('.banner-dot')];
+  const prev = root.querySelector('.banner-arrow.prev');
+  const next = root.querySelector('.banner-arrow.next');
+  let current = -1;
+
+  const indexNow = () => Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+  const mark = (i) => {
+    if (i === current) return;
+    current = i;
+    dots.forEach((d, k) => { d.classList.toggle('on', k === i); if (k === i) d.setAttribute('aria-current', 'true'); else d.removeAttribute('aria-current'); });
+    // Only the visible slide's buttons and links can be reached with Tab.
+    slides.forEach((sl, k) => {
+      sl.setAttribute('aria-hidden', k === i ? 'false' : 'true');
+      sl.querySelectorAll('a, button').forEach((el) => { el.tabIndex = k === i ? 0 : -1; });
+    });
+    prev.disabled = i === 0;
+    next.disabled = i === slides.length - 1;
+  };
+  const goTo = (i, smooth = true) => {
+    const k = Math.max(0, Math.min(slides.length - 1, i));
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    track.scrollTo({ left: k * track.clientWidth, behavior: smooth && !reduce ? 'smooth' : 'auto' });
+    mark(k);
+  };
+
+  let ticking = false;
+  track.addEventListener('scroll', () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => { ticking = false; mark(indexNow()); });
+  }, { passive: true });
+  dots.forEach((d) => d.addEventListener('click', () => goTo(Number(d.dataset.go))));
+  prev.addEventListener('click', () => goTo(current - 1));
+  next.addEventListener('click', () => goTo(current + 1));
+  track.addEventListener('keydown', (e) => {
+    if (e.target !== track) return;
+    if (e.key === 'ArrowRight') { e.preventDefault(); goTo(current + 1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); goTo(current - 1); }
   });
+  // Keep the current banner in place if the screen is rotated or resized.
+  window.addEventListener('resize', () => goTo(current, false));
+  goTo(startAt, false);
 }
 
 export function escapeHtml(str) {

@@ -1158,3 +1158,28 @@ details[open] > .password-summary::after { transform: rotate(90deg); }
 .password-done { color: var(--green); font-size: 12.5px; font-weight: 700; }
 details.password-card .password-form { padding: 0 18px 18px; }
 @media (prefers-reduced-motion: reduce) { .password-summary::after { transition: none; } }
+
+/* Home banner carousel (two or three banners; swipe only, never moves by itself) */
+.banner-carousel { position: relative; margin: 0 0 18px; }
+.banner-track { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none; border-radius: var(--radius-card); }
+.banner-track::-webkit-scrollbar { display: none; }
+.banner-track:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+.banner-track .home-banner { flex: 0 0 100%; margin: 0; scroll-snap-align: center; scroll-snap-stop: always; box-sizing: border-box; }
+.banner-dots { display: flex; justify-content: center; gap: 4px; margin-top: 8px; }
+.banner-dot { width: 22px; height: 22px; padding: 0; border: 0; background: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.banner-dot::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--line); transition: width 0.2s, background 0.2s; }
+.banner-dot.on::before { width: 20px; border-radius: 999px; background: var(--indigo); }
+.banner-dot:focus-visible { outline: 3px solid var(--gold); outline-offset: 1px; border-radius: 6px; }
+/* Arrows only where there's a mouse; phones swipe. */
+.banner-arrow { display: none; position: absolute; top: calc(50% - 30px); width: 34px; height: 34px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.92); color: var(--indigo); font-size: 22px; line-height: 1; cursor: pointer; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); z-index: 3; }
+.banner-arrow.prev { left: -10px; }
+.banner-arrow.next { right: -10px; }
+.banner-arrow:disabled { opacity: 0; pointer-events: none; }
+.banner-arrow:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .banner-arrow { display: block; } }
+@media (prefers-reduced-motion: reduce) { .banner-track { scroll-behavior: auto; } .banner-dot::before { transition: none; } }
+/* Equal-height slides: stack each banner's content and keep its button at
+   the bottom, so a shorter banner's spare space sits above the button. */
+.banner-track .home-banner { display: flex; flex-direction: column; align-items: flex-start; }
+.banner-track .home-banner > h2, .banner-track .home-banner > p, .banner-track .home-banner > .home-banner-photo, .banner-track .home-banner > .home-banner-strip { align-self: stretch; }
+.banner-track .home-banner > .home-banner-btn { margin-top: auto; }
