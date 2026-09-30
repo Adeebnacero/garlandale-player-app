@@ -414,8 +414,8 @@ body:not(.login-page):not(.accept-invite-page) > main {
 
 /* ---- Hero header (home page redesign) ---- */
 header.hero-header {
-  background: linear-gradient(180deg, var(--indigo) 0%, var(--indigoSoft) 100%);
-  padding: 18px 20px 24px;
+  background: linear-gradient(145deg, var(--indigo) 0%, var(--indigoSoft) 100%);
+  padding: 18px 20px 26px;
   position: relative;
   overflow: hidden;
   display: block;
@@ -444,14 +444,14 @@ header.hero-header::before {
 }
 .hero-squad-watermark {
   position: absolute;
-  left: -0.06em;
-  bottom: -0.22em;
+  left: -0.02em;
+  bottom: -0.20em;
   z-index: 0;
   margin: 0;
   font-family: var(--font-display);
-  font-size: 264px;
+  font-size: 250px;
   line-height: 1;
-  color: rgba(247,245,239,0.04);
+  color: rgba(247,245,239,0.055);
   letter-spacing: 0;
   pointer-events: none;
   user-select: none;
@@ -482,21 +482,37 @@ header.hero-header::before {
   text-transform: uppercase;
 }
 .hero-brand img { width: 22px; height: 22px; display: block; }
-.hero-greeting { color: rgba(247,245,239,0.6); font-size: 12px; margin: 16px 0 0; text-align: center; }
+.player-identity {
+  position: relative;
+  min-height: 122px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  margin-top: 22px;
+}
+.hero-greeting { color: rgba(247,245,239,0.64); font-size: 12px; margin: 0 0 4px; text-align: center; position: relative; z-index: 1; }
 .hero-name {
   font-family: var(--font-display);
   color: var(--paper);
-  font-size: 24px;
-  margin: 2px 0 16px;
+  font-size: 28px;
+  line-height: 1;
+  margin: 0;
   text-transform: uppercase;
   text-align: center;
+  position: relative;
+  z-index: 1;
+  letter-spacing: .015em;
 }
-.hero-squad-number {
-  font-family: var(--font-display);
-  color: rgba(247,245,239,0.55);
-  font-size: 18px;
-  margin-left: 8px;
-  text-transform: none;
+.player-meta { display: flex; justify-content: center; gap: 7px; margin-top: 13px; position: relative; z-index: 1; }
+.player-chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 25px; padding: 5px 10px;
+  border: 1px solid rgba(247,245,239,.18);
+  background: rgba(247,245,239,.08);
+  border-radius: 999px;
+  color: var(--paper); font-size: 10.5px; font-weight: 700;
 }
 .stat-caps {
   display: flex;
@@ -545,19 +561,22 @@ header.hero-header::before {
 }
 
 /* ---- Quick-action tile grid ---- */
+/* The tiles that are showing share one row - three, four or five (Shop only
+   while the shop is open, Loyalty only for members) - so none is ever left
+   on a row of its own. */
 .tile-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  display: flex;
+  gap: 8px;
   margin: 20px 0 22px;
 }
+.tile-grid > .tile { flex: 1 1 0; min-width: 0; }
 .tile {
   display: block;
   position: relative;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
-  padding: 16px 12px;
+  padding: 11px 4px 10px;
   text-align: center;
   text-decoration: none;
   box-shadow: var(--shadow-card);
@@ -566,8 +585,8 @@ header.hero-header::before {
 .tile:active { transform: scale(0.98); }
 .tile-accent { border: 2px solid var(--gold); }
 .tile-icon {
-  width: 37px;
-  height: 37px;
+  width: 32px;
+  height: 32px;
   border-radius: var(--radius-sm);
   background: var(--indigoSoft);
   display: flex;
@@ -575,8 +594,8 @@ header.hero-header::before {
   justify-content: center;
   margin: 0 auto 9px;
 }
-.tile-icon svg { width: 20px; height: 20px; stroke: var(--gold); }
-.tile-label { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.tile-icon svg { width: 18px; height: 18px; stroke: var(--gold); }
+.tile-label { font-size: 11.5px; font-weight: 700; color: var(--ink); display: block; overflow-wrap: anywhere; line-height: 1.2; }
 .tile-badge {
   position: absolute;
   top: 10px;
