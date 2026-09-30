@@ -67,9 +67,8 @@
     <div class="player-identity" id="player-identity">
       <p class="hero-greeting">Welcome back,</p>
       <h1 class="hero-name"><span id="player-name">&mdash;</span></h1>
-      <div class="player-meta" aria-label="Player details">
-        <span class="player-chip player-chip-gold" id="hero-squad-chip">Player</span>
-        <span class="player-chip" id="hero-number-chip" style="display:none;"></span>
+      <div class="player-meta" id="player-meta" aria-label="Player details" style="display:none;">
+        <span class="player-chip" id="hero-number-chip"></span>
       </div>
     </div>
     <div class="game-day-banner" id="game-day-banner" style="display:none;"></div>
@@ -454,13 +453,12 @@
       } else {
         squadWatermarkEl.style.display = 'none';
       }
-      const squadChip = document.getElementById('hero-squad-chip');
+      // The row under the name shows the squad number, when the player has
+      // one. (Supporters have no squad number, so they never see it.)
       const numberChip = document.getElementById('hero-number-chip');
-      if (squadChip) squadChip.textContent = body.team || body.ageGroup || 'Player';
-      if (numberChip) {
-        numberChip.textContent = squadNumber ? `Squad #${squadNumber}` : '';
-        numberChip.style.display = squadNumber ? '' : 'none';
-      }
+      const playerMeta = document.getElementById('player-meta');
+      if (numberChip) numberChip.textContent = squadNumber ? `Squad #${squadNumber}` : '';
+      if (playerMeta) playerMeta.style.display = squadNumber ? '' : 'none';
 
       const pillStyles = {
         green: { bg: 'var(--greenSoft)', fg: 'var(--green)', label: 'Compliant' },

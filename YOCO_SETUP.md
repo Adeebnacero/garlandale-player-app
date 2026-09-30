@@ -51,11 +51,33 @@ create unique index if not exists payments_reference_idx
 ## 5. Deploy
 ```
 supabase functions deploy create-yoco-checkout
-supabase functions deploy yoco-webhook
+supabase functions deploy yoco-webhook --no-verify-jwt
 supabase functions delete create-payfast-payment   # optional cleanup
 supabase functions delete payfast-itn               # optional cleanup
 ```
 Redeploy `home.html` with the rest of the player app's static files.
+
+**`yoco-webhook` must not check for a Supabase login (JWT).** Yoco calls it
+directly and can't send one, so with verification on, every payment
+notification would be refused and payments would stop being recorded
+automatically. The webhook checks Yoco's own signature instead.
+`supabase/config.toml` keeps verification off for this one function on
+every deploy, and `--no-verify-jwt` above is a second safeguard. After any
+deploy, you can confirm it in Supabase → Edge Functions → yoco-webhook →
+**Verify JWT** (should be off).
+
+**If recording a payment fails** (for example the database is briefly
+unavailable), the webhook replies with an error so Yoco sends the payment
+again later. This is safe because of the unique rule on
+`payments.reference` (step 4): the same payment can never be recorded twice.
+A payment for a player who no longer exists is logged as "PAYMENT RECEIVED
+FOR UNKNOWN PLAYER" in the webhook's logs for the club to sort out.
+
+**Messages that fail the signature check are refused with an error
+(401)**, and nothing is recorded. Forged messages don't come from Yoco, so
+nobody retries them. If real Yoco payments fail this check, the webhook
+secret no longer matches: set `YOCO_WEBHOOK_SECRET` to the secret shown in
+the Yoco Business Portal, and Yoco resends the failed deliveries.
 
 ## 6. Test before going live
 1. Keep `YOCO_SECRET_KEY` set to the **test** key.
