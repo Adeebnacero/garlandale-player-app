@@ -64,10 +64,14 @@
         <button class="menu-btn" id="menu-btn" aria-label="More options"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button>
       </div>
     </div>
-    <p class="hero-greeting">Welcome back,</p>
-    <h1 class="hero-name">
-      <span id="player-name">&mdash;</span>
-    </h1>
+    <div class="player-identity" id="player-identity">
+      <p class="hero-greeting">Welcome back,</p>
+      <h1 class="hero-name"><span id="player-name">&mdash;</span></h1>
+      <div class="player-meta" aria-label="Player details">
+        <span class="player-chip player-chip-gold" id="hero-squad-chip">Player</span>
+        <span class="player-chip" id="hero-number-chip" style="display:none;"></span>
+      </div>
+    </div>
     <div class="game-day-banner" id="game-day-banner" style="display:none;"></div>
     <div class="stat-caps">
       <div class="stat-cap">
@@ -443,11 +447,19 @@
       document.getElementById('player-name').textContent = body.name || 'Player';
 
       const squadWatermarkEl = document.getElementById('hero-squad-watermark');
-      if (body.squadNumber) {
-        squadWatermarkEl.textContent = body.squadNumber;
+      const squadNumber = body.squadNumber ? String(body.squadNumber) : '';
+      if (squadNumber) {
+        squadWatermarkEl.textContent = squadNumber;
         squadWatermarkEl.style.display = '';
       } else {
         squadWatermarkEl.style.display = 'none';
+      }
+      const squadChip = document.getElementById('hero-squad-chip');
+      const numberChip = document.getElementById('hero-number-chip');
+      if (squadChip) squadChip.textContent = body.team || body.ageGroup || 'Player';
+      if (numberChip) {
+        numberChip.textContent = squadNumber ? `Squad #${squadNumber}` : '';
+        numberChip.style.display = squadNumber ? '' : 'none';
       }
 
       const pillStyles = {
