@@ -15,8 +15,10 @@ import { cachedFetch } from './cache.js';
 import {
   registerServiceWorker, setupDrawer, setupRefreshAndSignOut, loadNoticeBadge, loadActiveStatus,
   loadMyPlayers, resolveSelectedPlayer, getSessionOrTimeout, showSessionCheckError,
-  escapeHtml, escapeAttr, linkifyText, updateShopNav, setupNavigationFeedback, startNavigationFeedback,
+  escapeHtml, escapeAttr, linkifyText, updateShopNav, setupNavigationFeedback, startNavigationFeedback, setupStickyHeader,
 } from './page-shared.js';
+import { supporterGate } from './supporter.js';
+import { setupInstall } from './install.js';
 
 const loading = document.getElementById('loading');
 const app = document.getElementById('app');
@@ -243,7 +245,7 @@ function viewProduct(id) {
   const label = p.state === 'out' ? 'Sold out' : needSize ? 'Choose a size' : room === 0 ? 'All available stock is in your cart' : p.saleMode === 'preorder' ? 'Add pre-order to cart' : 'Add to cart';
   return `
     ${backLink('#', 'Shop')}
-    <div class="detail-art">${art(p)}</div>
+    <div class="detail-art${p.photoUrl ? ' has-photo' : ''}">${art(p)}</div>
     <p class="detail-name">${escapeHtml(p.name)}</p>
     <p class="detail-price">${money(p.price)}</p>
     <span class="avail ${a.cls}">${a.text}</span>
@@ -656,13 +658,23 @@ registerServiceWorker();
 setupDrawer();
 setupRefreshAndSignOut(supabase, uid);
 loadNoticeBadge(SUPABASE_URL, token, uid);
-updateShopNav(SUPABASE_URL, token, uid);
+updateShopNav(SUPABASE_URL, token, uid, { onShopPage: true });
 setupNavigationFeedback();
+setupInstall();
+setupStickyHeader();
 
 // Guardian's name and phone from the linked player's record (loaded
 // below), used to pre-fill checkout the first time.
 (async () => {
   try {
+    // Supporters: their own details; unapproved ones go to the waiting screen.
+    const gate = await supporterGate(SUPABASE_URL, token, uid);
+    if (gate.redirected) return;
+    if (gate.supporter) {
+      profileDefaults.name = gate.account.supporter.fullName || '';
+      profileDefaults.phone = gate.account.supporter.phone || '';
+      return;
+    }
     const playersBody = await loadMyPlayers(SUPABASE_URL, token, uid);
     const players = playersBody.players || [];
     const playerId = resolveSelectedPlayer(uid, players);

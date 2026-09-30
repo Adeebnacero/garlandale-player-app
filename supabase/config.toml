@@ -1,0 +1,15 @@
+# Supabase CLI settings for this repo's Edge Functions.
+#
+# Every function checks the caller's Supabase login (JWT) by default. The
+# Yoco webhook is the one exception: Yoco calls it directly and can't send a
+# Supabase login, so its calls would be refused. It proves who it is with
+# Yoco's own signature instead (checked in yoco-webhook/index.ts).
+#
+# Keeping this here means a plain `supabase functions deploy yoco-webhook`
+# can never switch verification back on and silently stop payments being
+# recorded.
+
+project_id = "hfpmlrrunlttiekfdjdz"
+
+[functions.yoco-webhook]
+verify_jwt = false

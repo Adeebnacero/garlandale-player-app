@@ -1,32 +1,33 @@
 // Garlandale FC Player Portal — shared caching helper
 //
-// Strategy: refresh at two fixed points a day (10:00 and 17:00 local
-// time), not on every page load. First-ever fetch for a given key always
-// happens immediately (nothing to show otherwise). After that, a page
-// only re-fetches if one of today's/yesterday's refresh boundaries has
-// passed since the last successful fetch - otherwise it uses what's
-// already cached in localStorage, with zero network call.
+// Strategy: reuse a saved copy for at most MAX_AGE_MS (1 hour), and never
+// across midnight in South Africa - so a new day always starts with fresh
+// fixtures and notices (yesterday's match or birthday notice can't linger).
+// First-ever fetch for a given key always happens immediately (nothing to
+// show otherwise). The manual "Refresh now" action bypasses this entirely.
+//
+// (This replaced an earlier rule of refreshing only at 10:00 and 17:00,
+// which meant anything opened before 10:00 showed the previous evening's
+// data.)
 //
 // Cache is namespaced per logged-in user (their Supabase auth user id),
 // so if two different players ever use the same browser/device without
 // fully signing out, one player's cached data can never leak into what
 // the other sees.
+const MAX_AGE_MS = 60 * 60 * 1000; // 1 hour
 
-const REFRESH_HOURS = [10, 17]; // 10am and 5pm, local time
+/** A calendar date (YYYY-MM-DD) in South Africa (UTC+2, no daylight saving). */
+export function saDate(when = new Date()) {
+  const d = when instanceof Date ? when : new Date(when);
+  return new Date(d.getTime() + 2 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
 
-function lastBoundary(now) {
-  const candidates = [];
-  for (const h of REFRESH_HOURS) {
-    const today = new Date(now);
-    today.setHours(h, 0, 0, 0);
-    candidates.push(today);
-
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    candidates.push(yesterday);
-  }
-  const passed = candidates.filter((d) => d <= now).sort((a, b) => b - a);
-  return passed[0] || null;
+function isStale(fetchedAt, now) {
+  const fetched = new Date(fetchedAt);
+  if (Number.isNaN(fetched.getTime())) return true;
+  if (now - fetched > MAX_AGE_MS) return true;
+  if (fetched > now) return true;                 // phone clock went backwards
+  return saDate(fetched) !== saDate(now);         // a new day has started
 }
 
 function cacheKey(userId, key) {
@@ -35,8 +36,8 @@ function cacheKey(userId, key) {
 
 /**
  * Fetches `key` via `fetchFn` (an async function returning JSON-serializable
- * data), using the cached copy if we're still within the same refresh
- * window as the last successful fetch. Pass `force: true` to always bypass
+ * data), using the saved copy if it's less than an hour old and from
+ * today (South African time). Pass `force: true` to always bypass
  * the cache (used by the manual "Refresh now" action).
  */
 export async function cachedFetch(userId, key, fetchFn, { force = false } = {}) {
@@ -51,9 +52,7 @@ export async function cachedFetch(userId, key, fetchFn, { force = false } = {}) 
     cached = null;
   }
 
-  const boundary = lastBoundary(now);
-  const needsRefresh =
-    force || !cached || !boundary || new Date(cached.fetchedAt) < boundary;
+  const needsRefresh = force || !cached || isStale(cached.fetchedAt, now);
 
   if (!needsRefresh) {
     return cached.data;
@@ -83,9 +82,9 @@ export function clearUserCache(userId) {
 
 /** Invalidates just ONE cached key for one user - used right after a
  *  successful write, so the next read of that same data is guaranteed
- *  fresh rather than waiting for the next scheduled refresh window.
+ *  fresh rather than waiting for the saved copy to expire.
  *  (e.g. update-my-profile succeeding should immediately invalidate the
- *  cached get-my-profile result, not wait until 10am/5pm.) */
+ *  cached get-my-profile result.) */
 export function invalidateCacheKey(userId, key) {
   localStorage.removeItem(cacheKey(userId, key));
 }

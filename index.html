@@ -10,11 +10,21 @@
 <link rel="icon" type="image/png" href="icons/favicon.png" />
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
 <link rel="stylesheet" href="styles.css" />
+<script>
+  // Android announces "this app can be installed" once, early; keep it for
+  // the Install button (see install.js).
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    window.__gfcInstallPrompt = e;
+    window.dispatchEvent(new Event('gfc-installable'));
+  });
+</script>
 </head>
     <script defer src="/_vercel/insights/script.js"></script>
 <body class="login-page">
 
 <div class="login-box">
+  <div id="install-notice"></div>
 <div id="config-warning" class="config-warning" style="display:none;">
     This app isn't connected to a Supabase project yet — fill in
     <code>config.js</code> with your Project URL and anon key.
@@ -29,15 +39,24 @@
     <input type="password" id="password" placeholder="••••••••" required />
     <button type="submit" id="submit-btn">Sign in</button>
   </form>
+  <p class="forgot-link"><a href="reset-password.html" id="forgot-link">Forgot password?</a></p>
+
+  <div class="join-divider">New here?</div>
+  <a class="join-button" href="signup.html">Join as a supporter</a>
 
   <p class="login-note">
-    Use the email your coach or the club sent your invite to.
+    Players and guardians: use the email your coach or the club sent your invite to.
   </p>
 </div>
 
 <script type="module">
   import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
   import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+  import { renderSignInNotice } from './install.js';
+
+  // Opened inside WhatsApp, Facebook etc.? Point people at Chrome/Safari
+  // before they sign in, so they only sign in once, in the right browser.
+  renderSignInNotice(document.getElementById('install-notice'));
 
   const configWarning = document.getElementById('config-warning');
   const loginError = document.getElementById('login-error');
@@ -58,6 +77,18 @@
   if (prefillEmail) {
     document.getElementById('email').value = prefillEmail;
     document.getElementById('password').focus();
+  }
+
+  // "Forgot password?" carries over an email already typed in.
+  document.getElementById('forgot-link').addEventListener('click', (e) => {
+    const typed = document.getElementById('email').value.trim();
+    if (typed) { e.preventDefault(); window.location.href = `reset-password.html?email=${encodeURIComponent(typed)}`; }
+  });
+
+  // After a supporter deletes their account.
+  if (new URLSearchParams(window.location.search).get('deleted')) {
+    loginError.textContent = 'Your account has been deleted.';
+    loginError.classList.add('visible', 'is-info');
   }
 
   // If already signed in, skip straight to the dashboard.
@@ -93,7 +124,9 @@
       showError(
         error.message === 'Invalid login credentials'
           ? 'Incorrect email or password.'
-          : error.message
+          : /email not confirmed/i.test(error.message)
+            ? 'Please confirm your email address first: tap the link in the email we sent you.'
+            : error.message
       );
       submitBtn.disabled = false;
       submitBtn.textContent = 'Sign in';

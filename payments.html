@@ -70,8 +70,9 @@
   import {
     registerServiceWorker,
     loadMyPlayers, resolveSelectedPlayer, setSelectedPlayer, renderChildSwitcher,
-    getSessionOrTimeout, showSessionCheckError, setupNavigationFeedback,
+    getSessionOrTimeout, showSessionCheckError, setupNavigationFeedback, setupStickyHeader,
   } from './page-shared.js';
+  import { supporterGate } from './supporter.js';
 
   const loading = document.getElementById('loading');
   const app = document.getElementById('app');
@@ -100,7 +101,11 @@
 
     registerServiceWorker();
     setupNavigationFeedback();
+    setupStickyHeader();
 
+    // Loyalty and payments are for players; supporters go back to Home.
+    const gate = await supporterGate(SUPABASE_URL, accessToken, uid);
+    if (gate.supporter) window.location.replace('home.html');
     let players = [];
     try {
       const playersBody = await loadMyPlayers(SUPABASE_URL, accessToken, uid);

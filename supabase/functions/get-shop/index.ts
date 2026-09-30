@@ -13,6 +13,7 @@
 // exact stock is only revealed when it's low (see _shared/store.js).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { approvedSupporter } from "../_shared/account.js";
 import { buildCorsHeaders } from "../_shared/cors.js";
 import { checkRateLimit } from "../_shared/rate-limit.js";
 import { shopProductView, todayInSA } from "../_shared/store.js";
@@ -54,6 +55,12 @@ Deno.serve(async (req) => {
   if (new URL(req.url).searchParams.get("summary") === "1" || !open) {
     return json({ open });
   }
+
+  // The full shop is for guardians and approved supporters. (With public
+  // supporter sign-up, a brand-new or unapproved login gets only { open }.)
+  const { data: playerIds } = await callerClient.rpc("current_player_ids");
+  const allowed = (playerIds && playerIds.length > 0) || !!(await approvedSupporter(adminClient, userData.user.id));
+  if (!allowed) return json({ open, products: [], notAllowed: true });
 
   const { data: rows, error: productsErr } = await adminClient
     .from("store_products")

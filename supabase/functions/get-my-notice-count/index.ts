@@ -15,6 +15,9 @@
 // count it once, not twice).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { saDate, isCurrentNotice } from "../_shared/dates.js";
+import { approvedSupporter } from "../_shared/account.js";
+import { isForAgeGroup } from "../_shared/audience.js";
 import { buildCorsHeaders } from "../_shared/cors.js";
 import { checkRateLimit } from "../_shared/rate-limit.js";
 import { computeAgeGroup } from "../_shared/billing.js";
@@ -45,6 +48,12 @@ Deno.serve(async (req) => {
 
   const { data: playerIds, error: rpcErr } = await callerClient.rpc("current_player_ids");
   if (rpcErr || !playerIds || playerIds.length === 0) {
+    // Approved supporters: notices count as read (see get-my-notices).
+    if (await approvedSupporter(createClient(SUPABASE_URL, SERVICE_ROLE_KEY), userData.user.id)) {
+      return new Response(JSON.stringify({ unread: 0 }), {
+        status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
     return new Response(JSON.stringify({ error: "No linked player accounts for this user" }), {
       status: 403,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
@@ -80,7 +89,7 @@ Deno.serve(async (req) => {
   const [{ data: allNotices }, { data: reads }] = await Promise.all([
     adminClient
       .from("notices")
-      .select("id, target_age_group")
+      .select("id, target_age_group, target_age_groups, category, posted_at")
       .order("posted_at", { ascending: false })
       .limit(50), // keep in sync with get-my-notices' limit
     adminClient.from("notice_reads").select("notice_id, player_id").in("player_id", playerIds),
@@ -90,12 +99,13 @@ Deno.serve(async (req) => {
   // per-child read status for each notice below.
   const readPairs = new Set((reads ?? []).map((r) => `${r.notice_id}|${r.player_id}`));
 
-  const unread = (allNotices ?? []).filter((n) => {
-    const target = (n.target_age_group ?? "").trim().toLowerCase();
+  // Same rule as get-my-notices: birthday notices only count on their day.
+  const today = saDate();
+  const unread = (allNotices ?? []).filter((n) => isCurrentNotice(n, today)).filter((n) => {
     // Unread for this notice if ANY linked child is both eligible for it
-    // (age group matches, or it's an all-ages notice) AND hasn't read it.
+    // (in one of its age groups, or it's for everyone) AND hasn't read it.
     return playerIds.some((pid) => {
-      const relevant = target === "" || target === "all" || target === ageGroupByPlayerId.get(pid);
+      const relevant = isForAgeGroup(n, ageGroupByPlayerId.get(pid));
       return relevant && !readPairs.has(`${n.id}|${pid}`);
     });
   }).length;

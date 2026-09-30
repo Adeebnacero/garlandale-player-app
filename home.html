@@ -10,6 +10,15 @@
 <link rel="icon" type="image/png" href="icons/favicon.png" />
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
 <link rel="stylesheet" href="styles.css" />
+<script>
+  // Android announces "this app can be installed" once, early; keep it for
+  // the Install button (see install.js).
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    window.__gfcInstallPrompt = e;
+    window.dispatchEvent(new Event('gfc-installable'));
+  });
+</script>
 </head>
 <script defer src="/_vercel/insights/script.js"></script>
 <body class="home-page has-bottom-nav">
@@ -74,6 +83,8 @@
       <div class="drawer-header">
         <span>More options</span>
       </div>
+      <a class="drawer-item" href="#" data-install-menu style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>Install the app</a>
+      <a class="drawer-item" href="loyalty.html" data-loyalty-nav style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-4-6.3 4 1.7-7-5.4-4.7 7.1-.6z"/></svg>Loyalty</a>
       <a class="drawer-item" href="payments.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Payment history</a>
       <div class="drawer-divider"></div>
       <button class="drawer-item signout" id="logout-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>Sign out</button>
@@ -83,6 +94,8 @@
 
   <main>
     <div class="child-tabs" id="child-tabs" style="display:none;"></div>
+    <div id="install-slot"></div>
+    <div id="home-banner"></div>
 
     <p id="payment-status-banner" style="display:none; text-align:center; font-size:13px; padding:10px 14px; border-radius:8px; margin: 0 0 16px;"></p>
 
@@ -95,6 +108,10 @@
         <span class="tile-badge" id="notices-badge" style="display:none;"></span>
         <span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0112 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M9.5 20a2.5 2.5 0 005 0"/></svg></span>
         <span class="tile-label">Notices</span>
+      </a>
+      <a class="tile" href="shop.html" data-shop-tile style="display:none;">
+        <span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 016 0"/></svg></span>
+        <span class="tile-label">Shop</span>
       </a>
       <a class="tile" href="profile.html">
         <span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></span>
@@ -172,13 +189,9 @@
       <span>Notices</span>
       <span class="nav-indicator"></span>
     </a>
-    <a href="loyalty.html" data-loyalty-nav style="display:none;">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-4-6.3 4 1.7-7-5.4-4.7 7.1-.6z"/></svg>
-      <span>Loyalty</span>
-      <span class="nav-indicator"></span>
-    </a>
     <a href="shop.html" data-shop-nav style="display:none;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 016 0"/></svg>
+      <span class="nav-new" data-shop-new hidden>New</span>
       <span>Shop</span>
       <span class="nav-indicator"></span>
     </a>
@@ -202,7 +215,10 @@
     safeMapsLink, locationButtonsHtml, locationMapBoxHtml, handleShowMapClick,
     linkifyText,
     updateShopNav, setupNavigationFeedback,
+    upcomingFixtures, renderHomeBanner,
   } from './page-shared.js';
+  import { setupInstall } from './install.js';
+  import { supporterGate, startSupporterHome } from './supporter.js';
 
   const loading = document.getElementById('loading');
   const app = document.getElementById('app');
@@ -343,9 +359,17 @@
     // currently selected in the switcher below.
     loadNoticeBadge(SUPABASE_URL, accessToken, uid);
     updateShopNav(SUPABASE_URL, accessToken, uid);
+    renderHomeBanner(document.getElementById('home-banner'), SUPABASE_URL, accessToken, uid);
     setupNavigationFeedback();
+    setupInstall({ card: document.getElementById('install-slot') });
     loadTraining(accessToken, uid);
 
+    // Supporters (fans without a player) get their own Home; guardians
+    // carry on exactly as before.
+    const gate = await supporterGate(SUPABASE_URL, accessToken, uid);
+    if (gate.supporter) {
+      startSupporterHome({ SUPABASE_URL, accessToken, uid, account: gate.account, upcomingFixtures });
+    } else if (!gate.redirected) {
     let players = [];
     try {
       const playersBody = await loadMyPlayers(SUPABASE_URL, accessToken, uid);
@@ -374,6 +398,7 @@
 
     if (paymentParam === 'success') {
       setTimeout(() => loadBalance(accessToken, uid, selectedPlayerId, { force: true }), 4000);
+    }
     }
   }
 
@@ -540,6 +565,8 @@
       });
 
       fixtureLoading.style.display = 'none';
+      // A saved copy can be up to an hour old: drop matches whose day has passed.
+      body.fixtures = upcomingFixtures(body.fixtures);
 
       if (!body.fixtures || body.fixtures.length === 0) {
         fixtureNone.style.display = 'block';

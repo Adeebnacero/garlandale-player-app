@@ -10,6 +10,15 @@
 <link rel="icon" type="image/png" href="icons/favicon.png" />
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
 <link rel="stylesheet" href="styles.css" />
+<script>
+  // Android announces "this app can be installed" once, early; keep it for
+  // the Install button (see install.js).
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    window.__gfcInstallPrompt = e;
+    window.dispatchEvent(new Event('gfc-installable'));
+  });
+</script>
 </head>
   <script defer src="/_vercel/insights/script.js"></script>
 <body class="home-page has-bottom-nav">
@@ -56,6 +65,8 @@
       <div class="drawer-header">
         <span>More options</span>
       </div>
+      <a class="drawer-item" href="#" data-install-menu style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>Install the app</a>
+      <a class="drawer-item" href="loyalty.html" data-loyalty-nav style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-4-6.3 4 1.7-7-5.4-4.7 7.1-.6z"/></svg>Loyalty</a>
       <button class="drawer-item" id="refresh-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-3-6.7M21 4v5h-5"/></svg>Refresh now</button>
       <div class="drawer-divider"></div>
       <button class="drawer-item signout" id="logout-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>Sign out</button>
@@ -96,13 +107,9 @@
       <span>Notices</span>
       <span class="nav-indicator"></span>
     </a>
-    <a href="loyalty.html" data-loyalty-nav style="display:none;">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-4-6.3 4 1.7-7-5.4-4.7 7.1-.6z"/></svg>
-      <span>Loyalty</span>
-      <span class="nav-indicator"></span>
-    </a>
     <a href="shop.html" data-shop-nav style="display:none;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 016 0"/></svg>
+      <span class="nav-new" data-shop-new hidden>New</span>
       <span>Shop</span>
       <span class="nav-indicator"></span>
     </a>
@@ -125,8 +132,15 @@
     loadMyPlayers, resolveSelectedPlayer, setSelectedPlayer, renderChildSwitcher,
     getSessionOrTimeout, showSessionCheckError,
     downloadFixtureICS,
-    updateShopNav, setupNavigationFeedback,
+    updateShopNav, setupNavigationFeedback, setupStickyHeader,
+    upcomingFixtures,
   } from './page-shared.js';
+  import { setupInstall } from './install.js';
+  import { supporterGate, orderTeams, filterByTeam, teamChipsHtml } from './supporter.js';
+
+  // Set for supporter accounts: { follows, team } (team is the chosen filter).
+  // Declared before the start-up code below, which sets it.
+  let supporterMode = null;
 
   const loading = document.getElementById('loading');
   const app = document.getElementById('app');
@@ -159,7 +173,18 @@
     loadNoticeBadge(SUPABASE_URL, accessToken, uid);
     updateShopNav(SUPABASE_URL, accessToken, uid);
     setupNavigationFeedback();
+    setupInstall();
+    setupStickyHeader();
 
+    // Supporters see every team's fixtures, with a team filter.
+    const gate = await supporterGate(SUPABASE_URL, accessToken, uid);
+    if (gate.supporter) {
+      supporterMode = { follows: gate.account.supporter.follows || [], team: 'all' };
+      const foot = document.querySelector('main .footnote');
+      if (foot) foot.textContent = 'Showing fixtures for every Garlandale FC team.';
+      document.getElementById('fixtures-empty').textContent = 'No upcoming fixtures yet.';
+      loadFixtures(accessToken, uid, null);
+    } else if (!gate.redirected) {
     let players = [];
     try {
       const playersBody = await loadMyPlayers(SUPABASE_URL, accessToken, uid);
@@ -183,6 +208,7 @@
 
     loadActiveStatus(SUPABASE_URL, accessToken, uid, selectedPlayerId);
     loadFixtures(accessToken, uid, selectedPlayerId);
+    }
   }
 
   async function loadFixtures(accessToken, userId, playerId) {
@@ -198,9 +224,11 @@
     fixturesList.innerHTML = '';
 
     try {
-      const body = await cachedFetch(userId, `get-my-fixtures:${playerId}`, async () => {
+      const body = await cachedFetch(userId, supporterMode ? 'get-my-fixtures:supporter' : `get-my-fixtures:${playerId}`, async () => {
         const res = await fetch(
-          `${SUPABASE_URL}/functions/v1/get-my-fixtures?player_id=${encodeURIComponent(playerId)}`,
+          supporterMode
+            ? `${SUPABASE_URL}/functions/v1/get-my-fixtures`
+            : `${SUPABASE_URL}/functions/v1/get-my-fixtures?player_id=${encodeURIComponent(playerId)}`,
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
         const json = await res.json();
@@ -209,6 +237,28 @@
       });
 
       fixturesLoading.style.display = 'none';
+      // A saved copy can be up to an hour old: drop matches whose day has passed.
+      body.fixtures = upcomingFixtures(body.fixtures);
+
+      // Supporters: team filter chips above the list.
+      let chips = document.getElementById('team-chips-wrap');
+      if (supporterMode) {
+        if (!chips) {
+          chips = document.createElement('div');
+          chips.id = 'team-chips-wrap';
+          fixturesList.parentNode.insertBefore(chips, fixturesLoading);
+          chips.addEventListener('click', (e) => {
+            const b = e.target.closest('[data-team]');
+            if (!b) return;
+            supporterMode.team = b.dataset.team;
+            loadFixtures(accessToken, userId, null);
+          });
+        }
+        const teams = orderTeams((body.fixtures || []).map((f) => f.age_group));
+        chips.innerHTML = teamChipsHtml(teams, supporterMode.team, supporterMode.follows);
+        body.fixtures = filterByTeam(body.fixtures || [], supporterMode.team, supporterMode.follows);
+        fixturesEmpty.textContent = supporterMode.team === 'all' ? 'No upcoming fixtures yet.' : 'No upcoming fixtures for this team.';
+      }
 
       if (!body.fixtures || body.fixtures.length === 0) {
         fixturesEmpty.style.display = 'block';
@@ -235,10 +285,11 @@
           return `
           <div class="card fixture-card${isNext ? ' next-fixture' : ''}${homeAwayClass}">
             ${isNext ? '<span class="next-fixture-badge">Next fixture</span>' : ''}
+            ${supporterMode && f.age_group ? `<span class="team-tag">${escapeHtml(f.age_group)}</span>` : ''}
             <p class="fixture-teams">Garlandale FC vs ${escapeHtml(f.opponent || 'TBC')}</p>
             <p class="fixture-when" style="margin-top:4px;">Venue: ${venueHtml}${f.home_away ? ` (${f.home_away === 'H' ? 'Home' : 'Away'})` : ''}</p>
             <p class="fixture-when${isNext ? ' fixture-when-strong' : ''}" style="margin-top:4px;">Time: ${dateFmt(f.match_date)}${f.kickoff_time ? ' · ' + timeFmt(f.kickoff_time) : ''}</p>
-            <p class="fixture-when" style="margin-top:8px; font-style: italic;">Please report 1 hour before kick-off</p>
+            ${supporterMode ? '' : '<p class="fixture-when" style="margin-top:8px; font-style: italic;">Please report 1 hour before kick-off</p>'}
             <div class="fixture-actions">
               <button type="button" class="add-to-calendar-btn" data-fixture-index="${i}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>

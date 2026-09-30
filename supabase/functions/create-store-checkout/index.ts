@@ -20,6 +20,7 @@
 // Uses the same secrets as create-yoco-checkout: YOCO_SECRET_KEY, APP_URL.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { approvedSupporter } from "../_shared/account.js";
 import { buildCorsHeaders } from "../_shared/cors.js";
 import { checkRateLimit } from "../_shared/rate-limit.js";
 import { parseCheckoutBody } from "../_shared/store.js";
@@ -52,8 +53,7 @@ Deno.serve(async (req) => {
   const rl = await checkRateLimit(adminClient, userId, "create-store-checkout", { maxRequests: 10, windowSeconds: 60 });
   if (!rl.allowed) return json({ error: "Too many requests - please slow down." }, 429);
 
-  // Only Player Portal accounts linked to a player can buy (the same
-  // accounts that can see anything else in the app).
+  // Guardians (linked to a player) and approved supporters can buy.
   const { count: linkCount, error: linkErr } = await adminClient
     .from("guardian_players")
     .select("player_id", { count: "exact", head: true })
@@ -62,7 +62,9 @@ Deno.serve(async (req) => {
     console.error("create-store-checkout: failed to check guardian link", linkErr);
     return json({ error: "Could not start checkout - please try again." }, 500);
   }
-  if (!linkCount) return json({ error: "This account isn't linked to a player, so it can't use the shop." }, 403);
+  if (!linkCount && !(await approvedSupporter(adminClient, userId))) {
+    return json({ error: "This account can’t use the shop yet." }, 403);
+  }
 
   let body: unknown;
   try {

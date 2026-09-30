@@ -6,7 +6,7 @@
 // service worker registration, and HTML-escaping. Extracted here so a fix
 // only has to happen in one place instead of five.
 
-import { cachedFetch, clearUserCache } from './cache.js';
+import { cachedFetch, clearUserCache, saDate } from './cache.js';
 
 // ---------------------------------------------------------------------------
 // Add-to-calendar (.ics) support for fixtures. Pure client-side - no
@@ -459,28 +459,221 @@ export function setupNavigationFeedback() {
   window.addEventListener('pageshow', stopNavigationFeedback);
 }
 
+// The top bar stays at the top of the screen while scrolling (see the
+// sticky header rule in styles.css). This adds a soft shadow under it once
+// the page has scrolled, so it's clear the content is moving beneath it,
+// and makes the browser leave room for the bar when it scrolls anything
+// into view. Does nothing on Home, whose big header isn't fixed.
+export function setupStickyHeader() {
+  const header = document.querySelector('body.home-page header:not(.hero-header)');
+  if (!header || getComputedStyle(header).position !== 'sticky') return;
+  const update = () => header.classList.toggle('is-scrolled', window.scrollY > 4);
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+  document.documentElement.style.scrollPaddingTop = `${header.offsetHeight + 8}px`;
+}
+
+// ---------------------------------------------------------------------------
+// Keeping saved lists current. The app reuses a saved copy of fixtures and
+// notices for up to an hour (see cache.js), so these trim anything that
+// has gone out of date since it was saved. Dates are South African.
+// ---------------------------------------------------------------------------
+
+/** Fixtures from today onwards (a match stays listed all day on match day). */
+export function upcomingFixtures(fixtures) {
+  const today = saDate();
+  return (fixtures || []).filter((f) => !f.match_date || f.match_date >= today);
+}
+
+/** Notices without birthday notices from earlier days (they're for the day only). */
+export function currentNotices(notices) {
+  const today = saDate();
+  return (notices || []).filter((n) => n.category !== 'birthday' || (n.posted_at && saDate(n.posted_at) === today));
+}
+
 // Shows the Shop tab in the bottom navigation only while the club shop is
 // open. Shows the last known state straight away (so the tab doesn't pop
 // in and out), then checks get-shop?summary=1 in the background, so
 // switching the shop on or off in Club Management shows up the next time
 // a page opens. Non-critical: if the check fails, nothing changes.
-export async function updateShopNav(SUPABASE_URL, accessToken, userId) {
+export async function updateShopNav(SUPABASE_URL, accessToken, userId, { onShopPage = false } = {}) {
   const key = `gfc_shop_open_${userId}`;
   const apply = (open) => {
     document.querySelectorAll('[data-shop-nav]').forEach((el) => { el.style.display = open ? 'flex' : 'none'; });
+    document.querySelectorAll('[data-shop-tile]').forEach((el) => { el.style.display = open ? 'block' : 'none'; });
   };
   try { apply(localStorage.getItem(key) === '1'); } catch { /* storage unavailable */ }
+  let open = false;
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/get-shop?summary=1`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!res.ok) return;
     const body = await res.json();
-    apply(!!body.open);
-    try { localStorage.setItem(key, body.open ? '1' : '0'); } catch { /* storage unavailable */ }
+    open = !!body.open;
+    apply(open);
+    try { localStorage.setItem(key, open ? '1' : '0'); } catch { /* storage unavailable */ }
   } catch {
-    // Offline or not deployed yet - keep whatever is showing.
+    return; // Offline or not deployed yet - keep whatever is showing.
   }
+  if (open) updateShopNewLabel(SUPABASE_URL, accessToken, userId, onShopPage);
+}
+
+// "New" on the Shop tab, while a running shop banner asks for it (Club
+// Management -> Messages -> Home banners). It clears for this guardian as
+// soon as they open the shop, and comes back only for a different banner.
+async function updateShopNewLabel(SUPABASE_URL, accessToken, userId, onShopPage) {
+  const seenKey = `gfc_shop_new_seen_${userId}`;
+  let body;
+  try { body = await loadMyBanners(SUPABASE_URL, accessToken, userId); } catch { return; }
+  const id = body && body.shopNewId;
+  if (id && onShopPage) { try { localStorage.setItem(seenKey, id); } catch { /* storage unavailable */ } }
+  let seen = null;
+  try { seen = localStorage.getItem(seenKey); } catch { /* storage unavailable */ }
+  const show = !!id && seen !== id;
+  document.querySelectorAll('[data-shop-new]').forEach((el) => { el.hidden = !show; });
+}
+
+// ---------------------------------------------------------------------------
+// Home banners (posted in Club Management -> Messages -> Home banners).
+// One shows at a time: the newest running banner this guardian hasn't
+// dismissed. Dismissing is remembered on this phone.
+// ---------------------------------------------------------------------------
+export function loadMyBanners(SUPABASE_URL, accessToken, userId) {
+  return cachedFetch(userId, 'get-my-banners', async () => {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-banners`, { headers: { Authorization: `Bearer ${accessToken}` } });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Could not load banners');
+    return json;
+  });
+}
+
+const dismissedKey = (userId) => `gfc_banner_dismissed_${userId}`;
+function dismissedBanners(userId) {
+  try { return JSON.parse(localStorage.getItem(dismissedKey(userId)) || '[]'); } catch { return []; }
+}
+function dismissBanner(userId, id) {
+  const list = dismissedBanners(userId).filter((x) => x !== id);
+  list.push(id);
+  try { localStorage.setItem(dismissedKey(userId), JSON.stringify(list.slice(-50))); } catch { /* storage unavailable */ }
+}
+
+function safeHttps(url) {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' && !u.username && !u.password && !/["'<>`\s]/.test(u.href) ? u.href : null;
+  } catch { return null; }
+}
+
+function bannerButtonHtml(button) {
+  if (!button) return '';
+  const inner = `${escapeHtml(button.text)} <span aria-hidden="true">›</span>`;
+  const pages = { shop: 'shop.html', fixtures: 'fixtures.html', notices: 'notices.html' };
+  if (pages[button.kind]) return `<a class="home-banner-btn" href="${pages[button.kind]}">${inner}</a>`;
+  const url = button.kind === 'directions' ? safeMapsLink(button.url) : safeHttps(button.url);
+  if (!url) return '';
+  return `<a class="home-banner-btn" href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">${inner}</a>`;
+}
+
+/** Fills `container` with the banner to show now, or empties it. */
+const MAX_HOME_BANNERS = 3;
+
+function bannerSlideHtml(b, i, total) {
+  const slide = total > 1 ? ` aria-roledescription="slide" aria-label="${i + 1} of ${total}: ${escapeAttr(b.title)}"` : ` aria-label="${escapeAttr(b.title)}"`;
+  return `
+    <section class="home-banner${total > 1 ? ' banner-slide' : ''}" data-banner-id="${escapeAttr(b.id)}"${slide}>
+      <button class="home-banner-close" type="button" aria-label="Dismiss this banner" data-dismiss="${escapeAttr(b.id)}">×</button>
+      <span class="home-banner-pill">New</span>
+      <h2>${escapeHtml(b.title)}</h2>
+      ${b.message ? `<p>${linkifyText(b.message)}</p>` : ''}
+      ${b.photoUrl ? `<div class="home-banner-photo"><img src="${escapeAttr(b.photoUrl)}" alt="" loading="lazy"></div>` : ''}
+      ${b.productPhotos && b.productPhotos.length ? `<div class="home-banner-strip" aria-hidden="true">${b.productPhotos.map((u) => `<span><img src="${escapeAttr(u)}" alt="" loading="lazy"></span>`).join('')}</div>` : ''}
+      ${bannerButtonHtml(b.button)}
+    </section>`;
+}
+
+/**
+ * Fills `container` with the banners to show now: up to three running
+ * banners this guardian hasn't dismissed, newest first. One banner shows on
+ * its own; two or three become a carousel the person swipes through (it
+ * never moves by itself), with dots underneath and arrows on computers.
+ */
+export async function renderHomeBanner(container, SUPABASE_URL, accessToken, userId, { startAt = 0 } = {}) {
+  if (!container) return;
+  let body;
+  try { body = await loadMyBanners(SUPABASE_URL, accessToken, userId); } catch { container.innerHTML = ''; return; }
+  const dismissed = new Set(dismissedBanners(userId));
+  const list = (body.banners || []).filter((x) => !dismissed.has(x.id)).slice(0, MAX_HOME_BANNERS);
+  if (!list.length) { container.innerHTML = ''; return; }
+
+  if (list.length === 1) {
+    container.innerHTML = bannerSlideHtml(list[0], 0, 1);
+  } else {
+    container.innerHTML = `
+      <div class="banner-carousel" role="region" aria-roledescription="carousel" aria-label="Club news: ${list.length} banners, swipe to see them all">
+        <div class="banner-track" tabindex="0">${list.map((b, i) => bannerSlideHtml(b, i, list.length)).join('')}</div>
+        <button class="banner-arrow prev" type="button" aria-label="Previous banner">‹</button>
+        <button class="banner-arrow next" type="button" aria-label="Next banner">›</button>
+        <div class="banner-dots">${list.map((b, i) => `<button type="button" class="banner-dot" data-go="${i}" aria-label="Show banner ${i + 1} of ${list.length}"></button>`).join('')}</div>
+      </div>`;
+    setupCarousel(container.querySelector('.banner-carousel'), Math.min(startAt, list.length - 1));
+  }
+
+  container.querySelectorAll('[data-dismiss]').forEach((btn) => btn.addEventListener('click', () => {
+    const slides = [...container.querySelectorAll('[data-banner-id]')];
+    const at = slides.findIndex((el) => el.dataset.bannerId === btn.dataset.dismiss);
+    dismissBanner(userId, btn.dataset.dismiss);
+    // Redraw (the next running banner, if any, takes its place) and stay
+    // roughly where the person was.
+    renderHomeBanner(container, SUPABASE_URL, accessToken, userId, { startAt: Math.max(0, at) });
+  }));
+}
+
+function setupCarousel(root, startAt) {
+  const track = root.querySelector('.banner-track');
+  const slides = [...track.children];
+  const dots = [...root.querySelectorAll('.banner-dot')];
+  const prev = root.querySelector('.banner-arrow.prev');
+  const next = root.querySelector('.banner-arrow.next');
+  let current = -1;
+
+  const indexNow = () => Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+  const mark = (i) => {
+    if (i === current) return;
+    current = i;
+    dots.forEach((d, k) => { d.classList.toggle('on', k === i); if (k === i) d.setAttribute('aria-current', 'true'); else d.removeAttribute('aria-current'); });
+    // Only the visible slide's buttons and links can be reached with Tab.
+    slides.forEach((sl, k) => {
+      sl.setAttribute('aria-hidden', k === i ? 'false' : 'true');
+      sl.querySelectorAll('a, button').forEach((el) => { el.tabIndex = k === i ? 0 : -1; });
+    });
+    prev.disabled = i === 0;
+    next.disabled = i === slides.length - 1;
+  };
+  const goTo = (i, smooth = true) => {
+    const k = Math.max(0, Math.min(slides.length - 1, i));
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    track.scrollTo({ left: k * track.clientWidth, behavior: smooth && !reduce ? 'smooth' : 'auto' });
+    mark(k);
+  };
+
+  let ticking = false;
+  track.addEventListener('scroll', () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => { ticking = false; mark(indexNow()); });
+  }, { passive: true });
+  dots.forEach((d) => d.addEventListener('click', () => goTo(Number(d.dataset.go))));
+  prev.addEventListener('click', () => goTo(current - 1));
+  next.addEventListener('click', () => goTo(current + 1));
+  track.addEventListener('keydown', (e) => {
+    if (e.target !== track) return;
+    if (e.key === 'ArrowRight') { e.preventDefault(); goTo(current + 1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); goTo(current - 1); }
+  });
+  // Keep the current banner in place if the screen is rotated or resized.
+  window.addEventListener('resize', () => goTo(current, false));
+  goTo(startAt, false);
 }
 
 export function escapeHtml(str) {

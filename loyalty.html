@@ -18,6 +18,15 @@
     margin-bottom: 12px;
   }
 </style>
+<script>
+  // Android announces "this app can be installed" once, early; keep it for
+  // the Install button (see install.js).
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    window.__gfcInstallPrompt = e;
+    window.dispatchEvent(new Event('gfc-installable'));
+  });
+</script>
 </head>
   <script defer src="/_vercel/insights/script.js"></script>
 <body class="home-page has-bottom-nav">
@@ -68,6 +77,8 @@
       <div class="drawer-header">
         <span>More options</span>
       </div>
+      <a class="drawer-item" href="#" data-install-menu style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>Install the app</a>
+      <a class="drawer-item active" href="loyalty.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-4-6.3 4 1.7-7-5.4-4.7 7.1-.6z"/></svg>Loyalty</a>
       <button class="drawer-item" id="refresh-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-3-6.7M21 4v5h-5"/></svg>Refresh now</button>
       <div class="drawer-divider"></div>
       <button class="drawer-item signout" id="logout-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>Sign out</button>
@@ -76,6 +87,7 @@
   </div>
 
   <main>
+    <a class="page-back" href="home.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Home</a>
     <p class="greeting">Member benefits</p>
     <h1 style="margin-bottom: 20px;">Loyalty</h1>
 
@@ -107,7 +119,7 @@
   </main>
 
   <nav class="bottom-nav">
-    <a href="home.html">
+    <a href="home.html" class="active">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-9 9 9M5 10v10h14V10"/></svg>
       <span>Home</span>
       <span class="nav-indicator"></span>
@@ -123,13 +135,9 @@
       <span>Notices</span>
       <span class="nav-indicator"></span>
     </a>
-    <a href="loyalty.html" class="active" data-loyalty-nav>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-4-6.3 4 1.7-7-5.4-4.7 7.1-.6z"/></svg>
-      <span>Loyalty</span>
-      <span class="nav-indicator"></span>
-    </a>
     <a href="shop.html" data-shop-nav style="display:none;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 016 0"/></svg>
+      <span class="nav-new" data-shop-new hidden>New</span>
       <span>Shop</span>
       <span class="nav-indicator"></span>
     </a>
@@ -150,8 +158,10 @@
     loadNoticeBadge, escapeHtml, escapeAttr,
     loadMyPlayers, resolveSelectedPlayer, setSelectedPlayer, renderChildSwitcher,
     getSessionOrTimeout, showSessionCheckError,
-    updateShopNav, setupNavigationFeedback,
+    updateShopNav, setupNavigationFeedback, setupStickyHeader,
   } from './page-shared.js';
+  import { setupInstall } from './install.js';
+  import { supporterGate } from './supporter.js';
 
   const loading = document.getElementById('loading');
   const app = document.getElementById('app');
@@ -184,9 +194,14 @@
     loadNoticeBadge(SUPABASE_URL, accessToken, uid);
     updateShopNav(SUPABASE_URL, accessToken, uid);
     setupNavigationFeedback();
+    setupInstall();
+    setupStickyHeader();
     const loyaltyNavItem = document.getElementById('loyalty-nav-item');
     if (loyaltyNavItem) loyaltyNavItem.style.display = 'flex';
 
+    // Loyalty and payments are for players; supporters go back to Home.
+    const gate = await supporterGate(SUPABASE_URL, accessToken, uid);
+    if (gate.supporter) window.location.replace('home.html');
     let players = [];
     try {
       const playersBody = await loadMyPlayers(SUPABASE_URL, accessToken, uid);
