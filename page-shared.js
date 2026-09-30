@@ -614,7 +614,6 @@ export async function renderHomeBanner(container, SUPABASE_URL, accessToken, use
         <div class="banner-track" tabindex="0">${list.map((b, i) => bannerSlideHtml(b, i, list.length)).join('')}</div>
         <button class="banner-arrow prev" type="button" aria-label="Previous banner">‹</button>
         <button class="banner-arrow next" type="button" aria-label="Next banner">›</button>
-        <div class="banner-swipe-hint" aria-hidden="true"><span class="hint-arrow">‹</span><span>Swipe for more</span><span class="hint-arrow">›</span></div>
         <div class="banner-dots">${list.map((b, i) => `<button type="button" class="banner-dot" data-go="${i}" aria-label="Show banner ${i + 1} of ${list.length}"></button>`).join('')}</div>
       </div>`;
     setupCarousel(container.querySelector('.banner-carousel'), Math.min(startAt, list.length - 1));
@@ -638,17 +637,7 @@ function setupCarousel(root, startAt) {
   const next = root.querySelector('.banner-arrow.next');
   let current = -1;
 
-  const indexNow = () => {
-    if (!slides.length) return 0;
-    const left = track.scrollLeft;
-    let best = 0;
-    let bestDistance = Infinity;
-    slides.forEach((slide, i) => {
-      const distance = Math.abs(slide.offsetLeft - left);
-      if (distance < bestDistance) { bestDistance = distance; best = i; }
-    });
-    return best;
-  };
+  const indexNow = () => Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
   const mark = (i) => {
     if (i === current) return;
     current = i;
@@ -664,16 +653,11 @@ function setupCarousel(root, startAt) {
   const goTo = (i, smooth = true) => {
     const k = Math.max(0, Math.min(slides.length - 1, i));
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    track.scrollTo({ left: slides[k].offsetLeft, behavior: smooth && !reduce ? 'smooth' : 'auto' });
+    track.scrollTo({ left: k * track.clientWidth, behavior: smooth && !reduce ? 'smooth' : 'auto' });
     mark(k);
   };
 
   let ticking = false;
-  const carousel = root;
-  track.addEventListener('pointerdown', () => carousel.classList.add('has-interacted'), { passive: true });
-  track.addEventListener('touchstart', () => carousel.classList.add('has-interacted'), { passive: true });
-  track.addEventListener('wheel', () => carousel.classList.add('has-interacted'), { passive: true });
-  dots.forEach((d) => d.addEventListener('click', () => carousel.classList.add('has-interacted')));
   track.addEventListener('scroll', () => {
     if (ticking) return;
     ticking = true;
