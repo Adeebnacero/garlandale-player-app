@@ -23,6 +23,8 @@ const APP_SHELL = [
   "./profile.html",
   "./fixtures.html",
   "./notices.html",
+  "./calendar.html",
+  "./calendar.js",
   "./loyalty.html",
   "./shop.html",
   "./shop.js",
