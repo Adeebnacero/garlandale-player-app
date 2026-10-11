@@ -15,7 +15,7 @@
 //
 // CACHE_NAME is bumped whenever this file itself changes, which forces
 // old cached entries to be discarded (see the "activate" handler below).
-const CACHE_NAME = "garlandale-player-app-v12";
+const CACHE_NAME = "garlandale-player-app-v14";
 const APP_SHELL = [
   "./",
   "./index.html",

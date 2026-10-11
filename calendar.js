@@ -78,16 +78,16 @@ export function setupCalendar({ SUPABASE_URL, accessToken, userId, els }) {
   const badge = (c) => `<span class="cal-badge" style="background:${escapeAttr(c.color)};color:${escapeAttr(c.text_color)}">${escapeHtml(c.name)}</span>`;
   const bar = (c) => `<span class="cal-bar" style="background:${escapeAttr(c.color)}"></span>`;
 
-  function eventCard(it, compact) {
+  // One event row: category-coloured bar, title, then category, time and venue
+  // in words (so nothing depends on colour alone). `arrow` adds the › used in
+  // the month agenda.
+  function eventRow(it, cls, arrow) {
     const c = catOf(it);
-    return `<button type="button" class="cal-item${compact ? ' compact' : ''}" data-open="${escapeAttr(it.id)}">
+    const meta = [c.name, timeLabel(it), it.venue].filter(Boolean).map(escapeHtml).join(' · ');
+    return `<button type="button" class="${cls}" data-open="${escapeAttr(it.id)}">
       ${bar(c)}
-      <span class="cal-item-text">
-        ${compact ? '' : badge(c)}
-        <span class="cal-item-title">${escapeHtml(it.title)}</span>
-        <span class="cal-item-meta">${compact ? `${escapeHtml(c.name)} · ` : ''}${escapeHtml(timeLabel(it))}${it.venue ? ` · ${escapeHtml(it.venue)}` : ''}</span>
-      </span>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="16" height="16" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+      <span class="cal-row-text"><b>${escapeHtml(it.title)}</b><small>${meta}</small></span>
+      ${arrow ? '<span class="cal-agenda-arrow" aria-hidden="true">›</span>' : ''}
     </button>`;
   }
 
@@ -97,7 +97,7 @@ export function setupCalendar({ SUPABASE_URL, accessToken, userId, els }) {
     if (state.view === 'month') return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
     const a = parseKey(mondayOf(state.cursor));
     const b = parseKey(addDays(mondayOf(state.cursor), 6));
-    return `${a.getDate()} ${MON3[a.getMonth()]} – ${b.getDate()} ${MON3[b.getMonth()]}`;
+    return `${a.getDate()} ${MON3[a.getMonth()]} – ${b.getDate()} ${MON3[b.getMonth()]} ${b.getFullYear()}`;
   }
 
   function monthHtml() {
@@ -106,33 +106,27 @@ export function setupCalendar({ SUPABASE_URL, accessToken, userId, els }) {
     const start = mondayOf(first);
     const daysInMonth = new Date(parseKey(first).getFullYear(), month + 1, 0).getDate();
     const cells = Math.ceil((((parseKey(first).getDay() + 6) % 7) + daysInMonth) / 7) * 7;
-    let grid = '';
+    let grid = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((w) => `<span class="cal-weekday" aria-hidden="true">${w}</span>`).join('');
     for (let i = 0; i < cells; i++) {
       const k = addDays(start, i);
       const list = itemsOn(k);
-      const seen = new Set();
-      const dots = [];
-      for (const it of list) {
-        const c = catOf(it);
-        if (seen.has(c.color) || dots.length >= 3) continue;
-        seen.add(c.color);
-        dots.push(`<span class="cal-dot" style="background:${escapeAttr(c.color)}"></span>`);
-      }
+      const dots = list.slice(0, 3).map((it) => `<i class="cal-dot" style="background:${escapeAttr(catOf(it).color)}"></i>`).join('');
+      const more = list.length > 3 ? `<em>+${list.length - 3}</em>` : '';
       const cls = ['cal-day'];
       if (parseKey(k).getMonth() !== month) cls.push('out');
       if (k === today) cls.push('today');
       if (k === state.selected) cls.push('selected');
       const label = `${longDate(k)}, ${list.length ? `${list.length} ${list.length === 1 ? 'item' : 'items'}` : 'nothing on'}`;
       grid += `<button type="button" class="${cls.join(' ')}" data-day="${k}" aria-label="${escapeAttr(label)}" aria-pressed="${k === state.selected}">
-        <span class="cal-day-num">${parseKey(k).getDate()}</span><span class="cal-dots">${dots.join('')}</span></button>`;
+        <span class="cal-day-num">${parseKey(k).getDate()}</span><span class="cal-dots">${dots}${more}</span></button>`;
     }
+    const sel = parseKey(state.selected);
     const selList = itemsOn(state.selected);
-    return `<div class="card cal-month">
-        <div class="cal-weekdays" aria-hidden="true"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
-        <div class="cal-grid">${grid}</div>
-      </div>
-      <h2 class="cal-day-heading">${escapeHtml(longDate(state.selected))}</h2>
-      ${selList.length ? selList.map((it) => eventCard(it, false)).join('') : '<div class="cal-empty">Nothing on at the club this day.</div>'}`;
+    return `<div class="cal-month">${grid}</div>
+      <section class="cal-agenda" aria-label="${escapeAttr(longDate(state.selected))}">
+        <h2 class="cal-agenda-head">${DAYS_LONG[sel.getDay()]}, ${sel.getDate()} ${MONTHS[sel.getMonth()]}</h2>
+        ${selList.length ? selList.map((it) => eventRow(it, 'cal-agenda-row', true)).join('') : '<p class="cal-none">Nothing on at the club this day.</p>'}
+      </section>`;
   }
 
   function weekHtml() {
@@ -142,9 +136,16 @@ export function setupCalendar({ SUPABASE_URL, accessToken, userId, els }) {
       const k = addDays(mon, i);
       const d = parseKey(k);
       const list = itemsOn(k);
-      html += `<section class="cal-wday" aria-label="${escapeAttr(longDate(k))}">
-        <h2 class="cal-wday-head${k === today ? ' today' : ''}">${WEEK_LONG[i]} <span>${d.getDate()} ${MON3[d.getMonth()]}</span>${k === today ? '<span class="cal-today-tag">Today</span>' : ''}</h2>
-        ${list.length ? list.map((it) => eventCard(it, true)).join('') : '<div class="cal-none">No events</div>'}
+      const isToday = k === today;
+      html += `<section class="cal-wday${isToday ? ' today' : ''}" aria-label="${escapeAttr(longDate(k))}">
+        <div class="cal-wday-head" aria-hidden="true">
+          <span class="cal-wday-name">${WEEK_LONG[i].slice(0, 3)}</span>
+          <span class="cal-wday-num">${d.getDate()}</span>
+          ${isToday ? '<span class="cal-wday-today">Today</span>' : ''}
+        </div>
+        <div class="cal-wday-events">
+          ${list.length ? list.map((it) => eventRow(it, 'cal-event', false)).join('') : '<span class="cal-none">No events</span>'}
+        </div>
       </section>`;
     }
     return html;
@@ -159,23 +160,29 @@ export function setupCalendar({ SUPABASE_URL, accessToken, userId, els }) {
       const days = new Date(y, m + 1, 0).getDate();
       let cells = '';
       let total = 0;
-      for (let b = 0; b < lead; b++) cells += '<span class="blank"></span>';
+      for (let b = 0; b < lead; b++) cells += '<i class="blank"></i>';
       for (let day = 1; day <= days; day++) {
         const k = `${y}-${pad(m + 1)}-${pad(day)}`;
         const list = itemsOn(k);
         total += list.length;
         const pick = list.find((it) => it.kind === 'fixture') || list[0];
-        const style = pick ? `background:${escapeAttr(catOf(pick).color)}` : '';
-        cells += `<span class="${k === today ? 'today' : ''}" style="${style}"></span>`;
+        const style = pick ? ` style="background:${escapeAttr(catOf(pick).color)};color:${escapeAttr(catOf(pick).text_color)}"` : '';
+        cells += `<i class="${pick ? 'has-event' : ''}${k === today ? ' today' : ''}"${style}>${day}</i>`;
       }
       const isNow = first.slice(0, 7) === today.slice(0, 7);
-      html += `<button type="button" class="cal-ymonth${isNow ? ' now' : ''}" data-month="${first}" aria-label="${escapeAttr(`${MONTHS[m]} ${y}, ${total} ${total === 1 ? 'item' : 'items'}`)}">
-        <span class="cal-ymonth-head"><b>${MON3[m]}</b><span>${total || ''}</span></span>
-        <span class="cal-ygrid" aria-hidden="true">${cells}</span></button>`;
+      const summary = total ? `${total} ${total === 1 ? 'item' : 'items'}` : 'Nothing on yet';
+      html += `<button type="button" class="cal-ymonth${isNow ? ' now' : ''}" data-month="${first}" aria-label="${escapeAttr(`${MONTHS[m]} ${y}, ${summary}`)}">
+        <span class="cal-ymonth-name">${MON3[m]}</span>
+        <span class="cal-ygrid" aria-hidden="true">${cells}</span>
+        <span class="cal-ymonth-summary">${summary}</span></button>`;
     }
-    html += '</div><div class="cal-legend">' + state.categories
+    return html + '</div>';
+  }
+
+  function legendHtml() {
+    if (!state.categories.length) return '';
+    return '<div class="cal-legend">' + state.categories
       .map((c) => `<span><i style="background:${escapeAttr(c.color)}"></i>${escapeHtml(c.name)}</span>`).join('') + '</div>';
-    return html;
   }
 
   function sheetHtml(it) {
@@ -208,7 +215,7 @@ export function setupCalendar({ SUPABASE_URL, accessToken, userId, els }) {
     els.status.innerHTML = state.error
       ? `<div class="login-error visible" role="alert">${escapeHtml(state.error)} <button type="button" class="cal-retry" data-retry>Try again</button></div>`
       : loadingNow ? '<div class="cal-loading"><span class="spinner-inline" aria-hidden="true"></span>Loading the calendar…</div>' : '';
-    els.body.innerHTML = state.view === 'month' ? monthHtml() : state.view === 'week' ? weekHtml() : yearHtml();
+    els.body.innerHTML = (state.view === 'month' ? monthHtml() : state.view === 'week' ? weekHtml() : yearHtml()) + legendHtml();
   }
 
   function neededKeys() {
