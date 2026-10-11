@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Garlandale FC Player Portal — Club calendar</title>
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#241a45" />
+<script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
+<link rel="icon" type="image/png" href="icons/favicon.png" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<link rel="stylesheet" href="styles.css" />
+<script>
+  // Android announces "this app can be installed" once, early; keep it for
+  // the Install button (see install.js).
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    window.__gfcInstallPrompt = e;
+    window.dispatchEvent(new Event('gfc-installable'));
+  });
+</script>
+</head>
+  <script defer src="/_vercel/insights/script.js"></script>
+<body class="home-page has-bottom-nav">
+
+<div id="loading" class="loading-page">
+  <div class="loader-emblem" aria-hidden="true"><img src="images/crest.png" alt="" width="48" height="56" /></div>
+  <span data-loading-message>Checking your session…</span>
+  <button type="button" class="loading-retry-btn" data-loading-retry>Try again</button>
+</div>
+
+<script>
+  // Watchdog for the session check below: runs immediately, with no
+  // imports and no network dependency of its own, so it can't get stuck
+  // on the same thing the main module script might get stuck on. This
+  // covers the case the getSessionOrTimeout() safety net in page-shared.js
+  // can't: a full page reload (e.g. the OS discarded this tab while the
+  // app was minimised, then reloaded it on return) where the ES module
+  // imports themselves - fetched fresh over the network - are what hangs,
+  // before any of our own code has had a chance to run.
+  (function () {
+    setTimeout(function () {
+      var appEl = document.getElementById('app');
+      var loadingEl = document.getElementById('loading');
+      if (!loadingEl || (appEl && appEl.style.display !== 'none')) return;
+      if (loadingEl.classList.contains('is-error')) return;
+      var msg = loadingEl.querySelector('[data-loading-message]');
+      if (msg) msg.textContent = "Couldn't check your session. Check your connection and try again.";
+      loadingEl.classList.add('is-error');
+      var retryBtn = loadingEl.querySelector('[data-loading-retry]');
+      if (retryBtn) retryBtn.addEventListener('click', function () { window.location.reload(); });
+    }, 10000);
+  })();
+</script>
+
+<div id="app" style="display:none;">
+  <header>
+    <button class="menu-btn" id="menu-btn" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+    <span class="header-center-title" id="header-brand"><img src="images/crest.png" alt="" style="width:22px; height:22px; vertical-align:-6px; margin-right:6px;" />Garlandale FC</span>
+    <span style="width:22px"></span>
+  </header>
+
+  <div class="drawer-overlay" id="drawer-overlay">
+    <div class="drawer-panel">
+      <div class="drawer-header">
+        <span>More options</span>
+      </div>
+      <a class="drawer-item" href="#" data-install-menu style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>Install the app</a>
+      <a class="drawer-item" href="loyalty.html" data-loyalty-nav style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-4-6.3 4 1.7-7-5.4-4.7 7.1-.6z"/></svg>Loyalty</a>
+      <a class="drawer-item active" href="calendar.html" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M8 14h2M14 14h2M8 17h2"/></svg>Club calendar</a>
+      <button class="drawer-item" id="refresh-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-3-6.7M21 4v5h-5"/></svg>Refresh now</button>
+      <div class="drawer-divider"></div>
+      <button class="drawer-item signout" id="logout-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>Sign out</button>
+      <div class="drawer-footer">Built by www.atgeneral.co.za</div>
+    </div>
+  </div>
+
+  <main>
+    <p class="greeting">Club</p>
+    <h1 style="margin-bottom: 18px;">Calendar</h1>
+
+    <div class="cal-tabs" role="group" aria-label="View" id="cal-tabs">
+      <button type="button" data-view="week" aria-pressed="false">Week</button>
+      <button type="button" data-view="month" aria-pressed="true">Month</button>
+      <button type="button" data-view="year" aria-pressed="false">Year</button>
+    </div>
+    <div class="cal-nav">
+      <button type="button" class="cal-arrow" id="cal-prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18" height="18" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="cal-nav-mid">
+        <h2 class="cal-period" id="cal-period" aria-live="polite"></h2>
+        <button type="button" class="cal-today-btn" id="cal-today">Jump to today</button>
+      </div>
+      <button type="button" class="cal-arrow" id="cal-next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18" height="18" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg></button>
+    </div>
+
+    <div id="cal-status"></div>
+    <div id="cal-body"></div>
+
+    <p class="footnote">Club events and fixtures for every Garlandale FC team.</p>
+  </main>
+
+  <div class="cal-sheet" id="cal-sheet" hidden></div>
+
+  <nav class="bottom-nav">
+    <a href="home.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-9 9 9M5 10v10h14V10"/></svg>
+      <span>Home</span>
+      <span class="nav-indicator"></span>
+    </a>
+    <a href="fixtures.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
+      <span>Fixtures</span>
+      <span class="nav-indicator"></span>
+    </a>
+    <a href="notices.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0112 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M9.5 20a2.5 2.5 0 005 0"/></svg>
+      <span class="nav-badge-dot" data-notice-badge style="display:none;"></span>
+      <span>Notices</span>
+      <span class="nav-indicator"></span>
+    </a>
+    <a href="shop.html" data-shop-nav style="display:none;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 016 0"/></svg>
+      <span class="nav-new" data-shop-new hidden>New</span>
+      <span>Shop</span>
+      <span class="nav-indicator"></span>
+    </a>
+    <a href="profile.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+      <span>Profile</span>
+      <span class="nav-indicator"></span>
+    </a>
+  </nav>
+</div>
+
+<script type="module">
+  import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+  import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+  import {
+    setupDrawer, setupRefreshAndSignOut, registerServiceWorker,
+    loadNoticeBadge, loadActiveStatus, loadMyPlayers, resolveSelectedPlayer,
+    getSessionOrTimeout, showSessionCheckError,
+    updateShopNav, setupNavigationFeedback, setupStickyHeader,
+  } from './page-shared.js';
+  import { setupInstall } from './install.js';
+  import { supporterGate } from './supporter.js';
+  import { setupCalendar } from './calendar.js';
+
+  const loading = document.getElementById('loading');
+  const app = document.getElementById('app');
+
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    loading.textContent = 'This app has no Supabase connection configured yet.';
+    throw new Error('Missing Supabase config');
+  }
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  let data;
+  try {
+    ({ data } = await getSessionOrTimeout(supabase));
+  } catch (err) {
+    showSessionCheckError(loading);
+    throw err;
+  }
+  if (!data.session) {
+    window.location.href = 'index.html';
+  } else {
+    loading.style.display = 'none';
+    app.style.display = 'block';
+    const uid = data.session.user.id;
+    const accessToken = data.session.access_token;
+
+    setupDrawer();
+    setupRefreshAndSignOut(supabase, uid);
+    registerServiceWorker();
+    loadNoticeBadge(SUPABASE_URL, accessToken, uid);
+    updateShopNav(SUPABASE_URL, accessToken, uid);
+    setupNavigationFeedback();
+    setupInstall();
+    setupStickyHeader();
+
+    // The calendar is the same for everyone, so there's no child switcher.
+    // Supporters still go through the gate (it hides player-only links and
+    // sends a not-yet-approved supporter to the waiting screen).
+    const gate = await supporterGate(SUPABASE_URL, accessToken, uid);
+    if (!gate.redirected) {
+      if (!gate.supporter) {
+        // Shows the Loyalty menu item when the selected child is active.
+        loadMyPlayers(SUPABASE_URL, accessToken, uid)
+          .then((body) => {
+            const playerId = resolveSelectedPlayer(uid, body.players || []);
+            if (playerId) loadActiveStatus(SUPABASE_URL, accessToken, uid, playerId);
+          })
+          .catch(() => {});
+      }
+      setupCalendar({
+        SUPABASE_URL,
+        accessToken,
+        userId: uid,
+        els: {
+          tabs: document.getElementById('cal-tabs'),
+          prev: document.getElementById('cal-prev'),
+          next: document.getElementById('cal-next'),
+          today: document.getElementById('cal-today'),
+          period: document.getElementById('cal-period'),
+          status: document.getElementById('cal-status'),
+          body: document.getElementById('cal-body'),
+          sheet: document.getElementById('cal-sheet'),
+        },
+      });
+    }
+  }
+</script>
+
+</body>
+</html>

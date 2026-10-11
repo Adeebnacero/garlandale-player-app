@@ -1,6 +1,25 @@
 Garlandale FC Player Portal — COMPLETE build (notice targeting by age group)
 ================================================================================
 
+CLUB CALENDAR (October 2026)
+--------------------------------------------------------------------------------
+New screen: Club calendar (calendar.html), in the menu under Payment history
+on Home (and in the same place in the menu on every other screen). Week,
+month and year views of club events and every Garlandale FC fixture. The
+same for every guardian and approved supporter.
+
+To switch it on:
+  1. Run migrations/2026-10-club-calendar.sql from the Club Management repo
+     in the Supabase SQL Editor (it creates the calendar tables).
+  2. supabase functions deploy get-club-calendar
+  3. Deploy this app as usual. The offline cache is now v13, so phones pick
+     up the new screen.
+
+Files: calendar.html, calendar.js, styles.css (Club calendar section),
+supabase/functions/get-club-calendar/index.ts,
+supabase/functions/_shared/calendar.js (+ calendar.test.js), and the menu
+item added to home, fixtures, notices, profile, shop and loyalty.
+
 SAME FULL-REBUILD APPROACH.
 
 1. find . -mindepth 1 -not -path './.git*' -delete
