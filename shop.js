@@ -230,6 +230,22 @@ function viewProduct(id) {
   if (!p) return `${backLink('#', 'Shop')}<div class="shop-empty"><h2>This item isn’t available</h2><p>It may have sold out or been removed from the shop.</p><button class="shop-btn-gold" type="button" data-go="#">Back to the shop</button></div>`;
   if (detailSel.productId !== p.id) detailSel = { productId: p.id, sizeId: null, qty: 1 };
   const a = availability(p);
+  return `
+    ${backLink('#', 'Shop')}
+    <div class="detail-art${p.photoUrl ? ' has-photo' : ''}">${art(p)}</div>
+    <p class="detail-name">${escapeHtml(p.name)}</p>
+    <p class="detail-price">${money(p.price)}</p>
+    <span class="avail ${a.cls}">${a.text}</span>
+    ${p.description ? `<p class="detail-desc">${linkifyText(p.description)}</p>` : '<div style="height:18px"></div>'}
+    ${p.saleMode === 'preorder' ? `<div class="preorder-box"><strong>Pre-order</strong>${p.preorderClosesOn ? `Orders close ${niceDate(p.preorderClosesOn)}. ` : ''}${p.preorderExpected ? escapeHtml(p.preorderExpected) + '. ' : ''}You pay now, and we’ll show it as ready to collect under My orders when it arrives.</div>` : ''}
+    <div id="detail-controls">${productControls(p)}</div>`;
+}
+
+// The part of the product screen that changes when a size or quantity is
+// picked: sizes, hint, quantity and the Add button. Kept separate so those
+// clicks can redraw just this part (see refreshProductControls) instead of
+// the whole screen, which would recreate the photo and make the page jump.
+function productControls(p) {
   const size = sizeOf(p, detailSel.sizeId);
   const needSize = p.hasSizes && !size;
   const room = needSize ? 0 : Math.max(0, maxQtyFor(p, detailSel.sizeId) - inCart(p.id, detailSel.sizeId));
@@ -244,13 +260,6 @@ function viewProduct(id) {
   const canAdd = p.state !== 'out' && !needSize && room > 0;
   const label = p.state === 'out' ? 'Sold out' : needSize ? 'Choose a size' : room === 0 ? 'All available stock is in your cart' : p.saleMode === 'preorder' ? 'Add pre-order to cart' : 'Add to cart';
   return `
-    ${backLink('#', 'Shop')}
-    <div class="detail-art${p.photoUrl ? ' has-photo' : ''}">${art(p)}</div>
-    <p class="detail-name">${escapeHtml(p.name)}</p>
-    <p class="detail-price">${money(p.price)}</p>
-    <span class="avail ${a.cls}">${a.text}</span>
-    ${p.description ? `<p class="detail-desc">${linkifyText(p.description)}</p>` : '<div style="height:18px"></div>'}
-    ${p.saleMode === 'preorder' ? `<div class="preorder-box"><strong>Pre-order</strong>${p.preorderClosesOn ? `Orders close ${niceDate(p.preorderClosesOn)}. ` : ''}${p.preorderExpected ? escapeHtml(p.preorderExpected) + '. ' : ''}You pay now, and we’ll show it as ready to collect under My orders when it arrives.</div>` : ''}
     ${p.hasSizes ? `
       <p class="shop-field-label">Size</p>
       <div class="size-row">${p.sizes.map((s) => `<button type="button" class="size-chip${detailSel.sizeId === s.id ? ' on' : ''}" data-size="${s.id}" ${s.state === 'out' ? `disabled aria-label="${escapeAttr(s.label)}, sold out"` : `aria-pressed="${detailSel.sizeId === s.id}"`}>${escapeHtml(s.label)}</button>`).join('')}</div>
@@ -263,6 +272,24 @@ function viewProduct(id) {
         <button type="button" data-dq="1" aria-label="More" ${qty >= room ? 'disabled' : ''}>+</button>
       </div>` : ''}
     <button class="shop-btn-gold" type="button" data-add ${canAdd ? '' : 'disabled'}>${label}</button>`;
+}
+
+// Redraws only the product controls, keeping the photo and scroll position,
+// and puts focus back on the button that was pressed (or a sensible
+// neighbour if it's now disabled). Falls back to a full render if the
+// product screen isn't showing.
+function refreshProductControls(pressed) {
+  const box = document.getElementById('detail-controls');
+  const p = productById(detailSel.productId);
+  if (!box || !p || route().name !== 'product') { render(); return; }
+  const hadFocus = pressed && document.activeElement === pressed;
+  const key = pressed ? (pressed.dataset.size ? `[data-size="${pressed.dataset.size}"]` : pressed.dataset.dq ? `[data-dq="${pressed.dataset.dq}"]` : pressed.hasAttribute('data-add') ? '[data-add]' : '') : '';
+  box.innerHTML = productControls(p);
+  updateCartBadge();
+  if (!hadFocus || !key) return;
+  let el = box.querySelector(key);
+  if (el && el.disabled) el = box.querySelector('[data-dq]:not([disabled])') || box.querySelector('[data-add]:not([disabled])');
+  if (el) el.focus({ preventScroll: true });
 }
 
 function totalsHtml(subtotal) {
@@ -566,8 +593,8 @@ $view.addEventListener('click', async (e) => {
   if (t.dataset.go) { go(t.dataset.go); return; }
   if (t.hasAttribute('data-reload')) { shopError = ''; shop = null; render(); loadShop(); return; }
   if (t.hasAttribute('data-reload-orders')) { ordersError = ''; orders = null; render(); return; }
-  if (t.dataset.size) { detailSel.sizeId = t.dataset.size; detailSel.qty = 1; render(); return; }
-  if (t.dataset.dq) { detailSel.qty = Math.max(1, detailSel.qty + Number(t.dataset.dq)); render(); return; }
+  if (t.dataset.size) { detailSel.sizeId = t.dataset.size; detailSel.qty = 1; refreshProductControls(t); return; }
+  if (t.dataset.dq) { detailSel.qty = Math.max(1, detailSel.qty + Number(t.dataset.dq)); refreshProductControls(t); return; }
   if (t.hasAttribute('data-add')) {
     const p = productById(detailSel.productId);
     if (!p) return;
@@ -580,7 +607,7 @@ $view.addEventListener('click', async (e) => {
     saveCart();
     detailSel.qty = 1;
     const size = sizeOf(p, sizeId);
-    render();
+    refreshProductControls(t);
     toast(`Added ${qty} × ${p.name}${size ? ` (${size.label})` : ''}`);
     return;
   }
