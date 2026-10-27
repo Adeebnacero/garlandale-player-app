@@ -215,6 +215,7 @@
     upcomingFixtures, renderHomeBanner,
   } from './page-shared.js';
   import { setupInstall } from './install.js';
+  import { syncPushSubscription } from './push.js';
   import { supporterGate, startSupporterHome } from './supporter.js';
 
   const loading = document.getElementById('loading');
@@ -359,6 +360,8 @@
     renderHomeBanner(document.getElementById('home-banner'), SUPABASE_URL, accessToken, uid);
     setupNavigationFeedback();
     setupInstall({ card: document.getElementById('install-slot') });
+    // Notifications on? Re-save this device about once a day (no-op otherwise).
+    syncPushSubscription(accessToken, uid);
     loadTraining(accessToken, uid);
 
     // Supporters (fans without a player) get their own Home; guardians

@@ -7,6 +7,7 @@
 // only has to happen in one place instead of five.
 
 import { cachedFetch, clearUserCache, saDate } from './cache.js';
+import { removePushOnSignOut } from './push.js';
 
 // ---------------------------------------------------------------------------
 // Add-to-calendar (.ics) support for fixtures. Pure client-side - no
@@ -309,6 +310,10 @@ export function setupRefreshAndSignOut(supabase, userId) {
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
       startNavigationFeedback();
+      // Take this device off the notification list first (needs the
+      // session, so before signOut) - on a shared phone the next person
+      // must not get this person's notifications. Quick and best effort.
+      await removePushOnSignOut(supabase);
       clearUserCache(userId);
       // Defense-in-depth: also wipe the service worker's Cache Storage, in
       // case any same-origin page asset was cached mid-session. Harmless -

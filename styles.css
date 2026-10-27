@@ -1302,3 +1302,13 @@ body.cal-sheet-open { overflow: hidden; }
 .cal-sheet-close { min-height: 48px; border-radius: var(--radius-btn); border: 1px solid var(--line); background: var(--card); color: var(--indigo); font: 700 15px var(--font-sans); cursor: pointer; margin-top: 4px; }
 
 .cal-tabs button:focus-visible, .cal-arrow:focus-visible, .cal-today-btn:focus-visible, .cal-day:focus-visible, .cal-event:focus-visible, .cal-agenda-row:focus-visible, .cal-ymonth:focus-visible, .cal-sheet-close:focus-visible, .cal-retry:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+/* =========================================================================
+   Notifications card (Profile, push.js)
+   ========================================================================= */
+.push-card { margin-top: 22px; }
+.push-actions { display: flex; flex-direction: column; gap: 10px; }
+.push-actions button:disabled { opacity: 0.6; cursor: wait; }
+.push-off { background: none; border: 0; padding: 6px 0; color: var(--inkSoft); font: 700 13.5px var(--font-sans); text-decoration: underline; cursor: pointer; }
+.push-msg { font-size: 13px; font-weight: 700; color: var(--danger); margin: 10px 0 0; }
+.push-msg.ok { color: var(--green); }

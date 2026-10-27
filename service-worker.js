@@ -15,7 +15,7 @@
 //
 // CACHE_NAME is bumped whenever this file itself changes, which forces
 // old cached entries to be discarded (see the "activate" handler below).
-const CACHE_NAME = "garlandale-player-app-v14";
+const CACHE_NAME = "garlandale-player-app-v15";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -32,6 +32,7 @@ const APP_SHELL = [
   "./signup.js",
   "./supporter.js",
   "./install.js",
+  "./push.js",
   "./reset-password.html",
   "./reset.js",
   "./password.js",
@@ -116,4 +117,71 @@ self.addEventListener("fetch", (event) => {
         return caches.match(event.request);
       })
   );
+});
+
+// ---------------------------------------------------------------------------
+// Push notifications
+// ---------------------------------------------------------------------------
+// The club's server (Supabase Edge Functions, see _shared/webpush.js) sends
+// an encrypted message through the phone's push service; the browser
+// decrypts it and hands it to us here as JSON:
+//   { title, body, url, tag }
+// Every push MUST show a notification - iPhones withdraw permission from
+// sites that receive pushes without showing one - so a message we can't
+// read still shows a plain "Garlandale FC" notification.
+//
+// tag: a later notification with the same tag replaces the earlier one on
+// the lock screen instead of stacking (e.g. hourly "new notices" updates).
+
+const DEFAULT_PUSH_URL = "notices.html";
+
+// Only ever open pages of this app - never a URL from elsewhere, even if
+// one somehow arrived in a message.
+function safePushUrl(value) {
+  try {
+    const url = new URL(value || DEFAULT_PUSH_URL, self.registration.scope);
+    if (url.origin === self.location.origin) return url.href;
+  } catch { /* fall through */ }
+  return new URL(DEFAULT_PUSH_URL, self.registration.scope).href;
+}
+
+self.addEventListener("push", (event) => {
+  let msg = {};
+  try {
+    msg = event.data ? event.data.json() : {};
+  } catch {
+    msg = { body: event.data ? event.data.text() : "" };
+  }
+  const title = (typeof msg.title === "string" && msg.title) || "Garlandale FC";
+  const options = {
+    body: typeof msg.body === "string" ? msg.body : "",
+    icon: "icons/icon-192.png",
+    badge: "icons/badge-96.png",
+    data: { url: safePushUrl(msg.url) },
+    lang: "en-ZA",
+  };
+  if (typeof msg.tag === "string" && msg.tag) {
+    options.tag = msg.tag;
+    options.renotify = true; // still buzz when it replaces an older one
+  }
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Tapping a notification: reuse an open app window if there is one,
+// otherwise open the app at the notification's page.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = safePushUrl(event.notification.data && event.notification.data.url);
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const client of windows) {
+      if (new URL(client.url).origin !== self.location.origin) continue;
+      try {
+        await client.focus();
+        if ("navigate" in client) await client.navigate(target);
+        return;
+      } catch { /* that window can't be reused - open a new one below */ }
+    }
+    await self.clients.openWindow(target);
+  })());
 });

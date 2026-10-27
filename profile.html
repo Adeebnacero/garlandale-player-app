@@ -164,6 +164,7 @@
   import { setupInstall } from './install.js';
   import { supporterGate, startSupporterProfile } from './supporter.js';
   import { renderChangePassword } from './password.js';
+  import { renderNotificationsCard } from './push.js';
 
   let selectedPlayerId = null;
 
@@ -205,7 +206,10 @@
     // delete account); guardians carry on exactly as before.
     const gate = await supporterGate(SUPABASE_URL, accessToken, uid);
     if (gate.supporter) {
-      startSupporterProfile({ SUPABASE_URL, accessToken, uid, account: gate.account, supabase });
+      await startSupporterProfile({ SUPABASE_URL, accessToken, uid, account: gate.account, supabase });
+      // Notifications, just above the Account (delete) card.
+      const accountCard = document.getElementById('sp-delete')?.closest('.card') || null;
+      renderNotificationsCard(document.querySelector('main'), { accessToken, uid, before: accountCard });
     } else if (!gate.redirected) {
     let players = [];
     try {
@@ -232,6 +236,8 @@
     loadProfile(accessToken, uid, selectedPlayerId);
     // Change password, below the profile details.
     renderChangePassword(document.querySelector('main .card').parentNode, supabase, data.session.user.email);
+    // Notifications, below Change password.
+    renderNotificationsCard(document.querySelector('main'), { accessToken, uid });
     }
   }
 
