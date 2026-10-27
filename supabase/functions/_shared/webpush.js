@@ -243,21 +243,18 @@ export async function sendPush(sub, message, vapid, { ttl = 12 * 3600, urgency =
 export const MAX_FAILURES = 5;
 
 /**
- * Sends `message` to every saved device for one user, and tidies up the
- * table as it goes: dead subscriptions are deleted, failures counted,
- * successes stamped. Returns { sent, removed, failed }.
+ * Sends a batch of deliveries - [{ sub, message, options }] where sub is a
+ * push_subscriptions row - a few at a time, and tidies the table as it
+ * goes: dead subscriptions are deleted, failures counted, successes
+ * stamped. Returns { sent, removed, failed }.
  */
-export async function sendToUser(adminClient, authUserId, message, options = {}) {
-  const vapid = await vapidFromEnv();
-  const { data: subs, error } = await adminClient
-    .from("push_subscriptions")
-    .select("id, endpoint, p256dh, auth, failure_count")
-    .eq("auth_user_id", authUserId);
-  if (error) throw error;
-
+export async function deliver(adminClient, deliveries, { concurrency = 10, vapid = null } = {}) {
+  const keys = vapid || await vapidFromEnv();
   const result = { sent: 0, removed: 0, failed: 0 };
-  for (const sub of subs || []) {
-    const r = await sendPush(sub, message, vapid, options);
+  let next = 0;
+
+  async function one({ sub, message, options }) {
+    const r = await sendPush(sub, message, keys, options || {});
     if (r.ok) {
       result.sent++;
       await adminClient.from("push_subscriptions")
@@ -274,5 +271,23 @@ export async function sendToUser(adminClient, authUserId, message, options = {})
         .eq("id", sub.id);
     }
   }
+
+  async function worker() {
+    while (next < deliveries.length) {
+      const d = deliveries[next++];
+      try { await one(d); } catch (err) { result.failed++; console.error("push delivery error", err); }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, deliveries.length) }, worker));
   return result;
+}
+
+/** Sends `message` to every saved device for one user. Returns { sent, removed, failed }. */
+export async function sendToUser(adminClient, authUserId, message, options = {}) {
+  const { data: subs, error } = await adminClient
+    .from("push_subscriptions")
+    .select("id, endpoint, p256dh, auth, failure_count")
+    .eq("auth_user_id", authUserId);
+  if (error) throw error;
+  return deliver(adminClient, (subs || []).map((sub) => ({ sub, message, options })));
 }

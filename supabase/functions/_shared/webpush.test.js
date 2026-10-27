@@ -6,7 +6,7 @@
 // byte, decryption fails.
 import {
   b64urlEncode, b64urlDecode, checkSubscription, encryptPayload,
-  importVapidKey, vapidAuthorization, sendPush, MAX_PAYLOAD_BYTES,
+  importVapidKey, vapidAuthorization, sendPush, deliver, MAX_PAYLOAD_BYTES,
 } from "./webpush.js";
 
 function assertEquals(actual, expected, msg) {
@@ -170,4 +170,42 @@ Deno.test("sendPush: headers, and what each push-service reply means", async () 
   assertEquals(r.ok === false && r.gone === false, true, "network error keeps it");
   r = await sendPush(row, { title: "x".repeat(MAX_PAYLOAD_BYTES) }, vapid, { fetchFn: reply(201) });
   assertEquals(r.ok, false, "over-long message refused before sending");
+});
+
+Deno.test("deliver: sends in parallel and tidies the table", async () => {
+  const browser = await fakeBrowser();
+  const v = await fakeVapid();
+  const vapid = { publicKey: v.publicKey, subject: "mailto:a@b.co", signingKey: await importVapidKey(v.publicKey, v.privateKey) };
+  const row = (id, failure_count = 0) => ({ id, endpoint: `https://fcm.googleapis.com/fcm/send/${id}`, p256dh: browser.sub.keys.p256dh, auth: browser.sub.keys.auth, failure_count });
+
+  // Push service: "gone" for id g, error for f*, fine otherwise.
+  const realFetch = globalThis.fetch;
+  let inFlight = 0, peak = 0;
+  globalThis.fetch = async (url) => {
+    inFlight++; peak = Math.max(peak, inFlight);
+    await new Promise((r) => setTimeout(r, 5));
+    inFlight--;
+    const id = url.split("/").pop();
+    return new Response("", { status: id === "g" ? 410 : id.startsWith("f") ? 500 : 201 });
+  };
+  const calls = [];
+  const table = () => {
+    const q = { op: null, values: null, update(v) { q.op = "update"; q.values = v; return q; }, delete() { q.op = "delete"; return q; },
+      eq(_c, id) { calls.push([q.op, id, q.values]); return Promise.resolve({}); } };
+    return q;
+  };
+  const adminClient = { from: () => table() };
+  try {
+    const subs = [row("a"), row("b"), row("g"), row("f1"), row("f4", 4), ...Array.from({ length: 20 }, (_, i) => row(`x${i}`))];
+    const r = await deliver(adminClient, subs.map((sub) => ({ sub, message: { title: "t" } })), { vapid, concurrency: 5 });
+    assertEquals(r.sent, 22, "sent");
+    assertEquals(r.removed, 2, "gone + fifth failure removed");
+    assertEquals(r.failed, 1, "first failure kept");
+    assertEquals(peak <= 5, true, "never more than 5 at once");
+    assertEquals(calls.some(([op, id]) => op === "delete" && id === "g"), true, "gone deleted");
+    assertEquals(calls.some(([op, id]) => op === "delete" && id === "f4"), true, "5th failure deleted");
+    assertEquals(calls.some(([op, id, v]) => op === "update" && id === "f1" && v.failure_count === 1), true, "failure counted");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });

@@ -1,5 +1,6 @@
-// Push notifications in the Player Portal (step 1: turning them on/off and
-// a test notification).
+// Push notifications in the Player Portal: turning them on/off on this
+// device, and a test notification. What gets sent, and when, is decided on
+// the server (send-notice-pushes, hourly).
 //
 // How it fits together:
 //   - The browser makes a "subscription" for this device: a private
@@ -168,6 +169,10 @@ const COPY = {
   unsupported: 'This phone or browser can’t show notifications from the app. On iPhone, update to iOS 16.4 or later and add the app to your Home Screen.',
 };
 
+// When notices arrive - shown under the on/off text. Matches the rules in
+// supabase/functions/_shared/notice-push.js.
+const SCHEDULE = 'New notices are sent at most once an hour, between 7am and 9pm. Urgent ones can arrive at any time.';
+
 /**
  * Adds a "Notifications" card to `container` (before `before`, if given).
  */
@@ -181,6 +186,7 @@ export async function renderNotificationsCard(container, { accessToken, uid, bef
   card.innerHTML = `
     <p class="card-label">Notifications</p>
     <p class="supporter-note push-text"></p>
+    <p class="supporter-note push-schedule" hidden>${SCHEDULE}</p>
     <div class="push-actions"></div>
     <p class="push-msg" role="status" hidden></p>`;
   container.insertBefore(card, before);
@@ -218,6 +224,7 @@ export async function renderNotificationsCard(container, { accessToken, uid, bef
 
   async function draw(state) {
     text.textContent = COPY[state] || COPY.unsupported;
+    card.querySelector('.push-schedule').hidden = !(state === 'on' || state === 'off');
     actions.innerHTML = '';
 
     if (state === 'off') {
