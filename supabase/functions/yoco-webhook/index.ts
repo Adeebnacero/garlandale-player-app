@@ -1,0 +1,190 @@
+// supabase/functions/yoco-webhook/index.ts
+//
+// PUBLIC endpoint - called directly by Yoco's servers, never by the
+// player app itself, so there's no caller JWT to check here. Trust comes
+// entirely from verifying the webhook-signature header (see
+// _shared/yoco.js) plus requiring event type === "payment.succeeded".
+//
+// Replaces the previous payfast-itn function (removed).
+//
+// On a genuine, validated, successful payment: insert one row into
+// `payments` for the amount Yoco confirms was actually paid, scoped to
+// the player id carried through in payload.metadata.playerId (set when
+// create-yoco-checkout created the Checkout). Deliberately does NOT
+// re-derive or touch balance/compliance directly - billing.js already
+// sums the payments table to compute both, so this is the only write
+// this function needs to make.
+//
+// Idempotency: Yoco (like most webhook providers) can and does retry
+// deliveries. payload.id is Yoco's own unique payment id (e.g.
+// "p_bx4bY9JA6r4UwAKFyAjHY2bE") - stored in payments.reference with a
+// unique constraint, so a duplicate delivery of the same event is a
+// no-op insert rather than a double-counted payment.
+//
+// Required secrets: YOCO_WEBHOOK_SECRET (starts with "whsec_", from the
+// webhook's configuration in the Yoco Business Portal / Webhooks API).
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyYocoWebhook } from "../_shared/yoco.js";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const YOCO_WEBHOOK_SECRET = Deno.env.get("YOCO_WEBHOOK_SECRET") ?? "";
+
+Deno.serve(async (req) => {
+  if (req.method !== "POST") {
+    return new Response("Method not allowed", { status: 405 });
+  }
+
+  if (!YOCO_WEBHOOK_SECRET) {
+    console.error("yoco-webhook: YOCO_WEBHOOK_SECRET is not configured");
+    // 500 here is fine (and arguably correct) - unlike a bad signature,
+    // this is our own misconfiguration, not a signal to stop retrying.
+    return new Response("webhook not configured", { status: 500 });
+  }
+
+  // Read the raw body ONCE, as text - the signature is computed over the
+  // exact raw bytes Yoco sent. Re-serializing parsed JSON would produce a
+  // different string and break verification.
+  const rawBody = await req.text();
+
+  const headers = {
+    "webhook-id": req.headers.get("webhook-id") ?? "",
+    "webhook-timestamp": req.headers.get("webhook-timestamp") ?? "",
+    "webhook-signature": req.headers.get("webhook-signature") ?? "",
+  };
+
+  const verification = await verifyYocoWebhook(rawBody, headers, YOCO_WEBHOOK_SECRET);
+  if (!verification.ok) {
+    // Nothing is recorded. The reply is an error (401), not "received":
+    //  - a forged message doesn't come from Yoco, so nobody retries it;
+    //  - a GENUINE Yoco payment only fails here if YOCO_WEBHOOK_SECRET no
+    //    longer matches Yoco's (e.g. after rotating it). An error makes Yoco
+    //    show the failed deliveries in its dashboard and send them again,
+    //    freshly signed, so once the secret is fixed the payments are
+    //    recorded instead of being silently lost.
+    console.error("yoco-webhook: signature verification failed - if these are real Yoco payments, check YOCO_WEBHOOK_SECRET matches the secret in Yoco", verification.reason);
+    return new Response("signature verification failed", { status: 401 });
+  }
+
+  let event: any;
+  try {
+    event = JSON.parse(rawBody);
+  } catch {
+    return new Response("invalid JSON", { status: 200 });
+  }
+
+  // Only a successful payment ever creates a payments row. Yoco sends
+  // webhooks for other event types too (payment.failed, refund.succeeded,
+  // etc.) - those are acknowledged with 200 but never processed here.
+  if (event?.type !== "payment.succeeded") {
+    return new Response("acknowledged, not a successful payment", { status: 200 });
+  }
+
+  const payload = event.payload ?? {};
+
+  // Club shop orders are handled completely separately from fees and
+  // return before any fee logic below runs. create-store-checkout marks
+  // them with metadata.kind = "store_order" and never sends a playerId,
+  // so a store payment can't be recorded as a fee payment.
+  if (payload.metadata?.kind === "store_order") {
+    return await handleStoreOrderPayment(payload);
+  }
+
+  const playerId = payload.metadata?.playerId;
+  const amountCents = Number(payload.amount);
+  const paymentRef = payload.id; // Yoco's payment id, e.g. "p_..."
+
+  if (!playerId || !Number.isFinite(amountCents) || amountCents <= 0 || !paymentRef) {
+    console.error("yoco-webhook: missing/invalid player id, amount, or payment id", {
+      playerId, amount: payload.amount, paymentRef,
+    });
+    return new Response("missing player id, amount, or payment id", { status: 200 });
+  }
+
+  const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+  const { data: player, error: playerErr } = await adminClient
+    .from("players")
+    .select("id")
+    .eq("id", playerId)
+    .maybeSingle();
+
+  // A database problem: reply with an error so Yoco resends the payment
+  // later. Resending is safe - the unique payments.reference rule means the
+  // same payment can never be recorded twice.
+  if (playerErr) {
+    console.error("yoco-webhook: couldn't look up the player - Yoco will retry", { playerId, error: playerErr.message });
+    return new Response("temporary error looking up player", { status: 500 });
+  }
+  // The player really doesn't exist (e.g. deleted after paying). Resending
+  // won't help, so acknowledge it - but the money was taken, so log it loudly
+  // for the club to sort out (refund, or record it against the right player).
+  if (!player) {
+    console.error("yoco-webhook: PAYMENT RECEIVED FOR UNKNOWN PLAYER - needs manual action", { playerId, paymentRef, amountCents });
+    return new Response("player not found", { status: 200 });
+  }
+
+  // Idempotent insert: `reference` has a unique constraint (see the
+  // migration adding it), so a duplicate delivery for the same payment
+  // just no-ops here instead of double-counting.
+  const { error: insertErr } = await adminClient.from("payments").insert({
+    player_id: playerId,
+    amount: amountCents / 100,
+    date: new Date().toISOString().slice(0, 10),
+    method: "Yoco",
+    reference: paymentRef,
+  });
+
+  if (insertErr) {
+    // Unique violation on `reference` = we've already recorded this
+    // payment from an earlier delivery of the same event - not an error.
+    if (insertErr.code === "23505") {
+      return new Response("already recorded", { status: 200 });
+    }
+    // Couldn't save it: reply with an error so Yoco resends it later, rather
+    // than a paid fee silently going unrecorded.
+    console.error("yoco-webhook: failed to record fee payment - Yoco will retry", { playerId, paymentRef, error: insertErr.message });
+    return new Response("temporary error recording payment", { status: 500 });
+  }
+
+  return new Response("ok", { status: 200 });
+});
+
+// Records a paid club shop order. store_mark_paid() does the work in one
+// database transaction: checks the amount, gives the order its number,
+// reduces stock and marks the lines paid. It's safe to call more than
+// once for the same payment, so unlike the fee branch above, a database
+// failure returns 500 to make Yoco retry the delivery.
+// deno-lint-ignore no-explicit-any
+async function handleStoreOrderPayment(payload: any): Promise<Response> {
+  const orderId = payload.metadata?.orderId;
+  const amountCents = Number(payload.amount);
+  const paymentRef = payload.id;
+
+  if (!orderId || !Number.isFinite(amountCents) || amountCents <= 0 || !paymentRef) {
+    console.error("yoco-webhook: store order payment missing order id, amount, or payment id", {
+      orderId, amount: payload.amount, paymentRef,
+    });
+    return new Response("missing order id, amount, or payment id", { status: 200 });
+  }
+
+  const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  const { data, error } = await adminClient.rpc("store_mark_paid", {
+    p_order_id: orderId,
+    p_payment_id: paymentRef,
+    p_amount_cents: Math.round(amountCents),
+  });
+
+  if (error) {
+    console.error("yoco-webhook: store_mark_paid failed - Yoco will retry", error.message);
+    return new Response("failed to record store order payment", { status: 500 });
+  }
+
+  if (data?.result === "not_found") {
+    console.error("yoco-webhook: store order not found for a successful payment - refund it in Yoco", { orderId, paymentRef });
+  } else if (data?.result === "duplicate_payment") {
+    console.error("yoco-webhook: second payment for an already-paid store order - flagged for staff", { orderId, paymentRef });
+  }
+  return new Response(`store order: ${data?.result ?? "ok"}`, { status: 200 });
+}
