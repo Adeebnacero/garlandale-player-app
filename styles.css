@@ -1312,3 +1312,49 @@ body.cal-sheet-open { overflow: hidden; }
 .push-off { background: none; border: 0; padding: 6px 0; color: var(--inkSoft); font: 700 13.5px var(--font-sans); text-decoration: underline; cursor: pointer; }
 .push-msg { font-size: 13px; font-weight: 700; color: var(--danger); margin: 10px 0 0; }
 .push-msg.ok { color: var(--green); }
+
+/* ---- Messages (side panel) ---- */
+.menu-btn { position: relative; }
+.menu-btn.has-unread::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: 1px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 0 2px var(--indigo);
+}
+.msg-list { display: flex; flex-direction: column; gap: 12px; }
+.msg-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(28, 23, 48, 0.08);
+  border-left: 4px solid transparent;
+}
+.msg-card.unread { border-left-color: var(--gold); }
+.msg-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--inkSoft);
+  margin-bottom: 6px;
+}
+.msg-child { font-weight: 700; color: var(--ink); }
+.msg-new {
+  margin-left: auto;
+  background: var(--gold);
+  color: var(--indigo);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.msg-body { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg-empty { color: var(--inkSoft); font-size: 14px; text-align: center; padding: 24px 8px; line-height: 1.5; }

@@ -15,7 +15,7 @@ import { cachedFetch } from './cache.js';
 import {
   registerServiceWorker, setupDrawer, setupRefreshAndSignOut, loadNoticeBadge, loadActiveStatus,
   loadMyPlayers, resolveSelectedPlayer, getSessionOrTimeout, showSessionCheckError,
-  escapeHtml, escapeAttr, linkifyText, updateShopNav, setupNavigationFeedback, startNavigationFeedback, setupStickyHeader,
+  escapeHtml, escapeAttr, linkifyText, updateShopNav, updateMessagesNav, setupNavigationFeedback, startNavigationFeedback, setupStickyHeader,
 } from './page-shared.js';
 import { supporterGate } from './supporter.js';
 import { setupInstall } from './install.js';
@@ -686,6 +686,7 @@ setupDrawer();
 setupRefreshAndSignOut(supabase, uid);
 loadNoticeBadge(SUPABASE_URL, token, uid);
 updateShopNav(SUPABASE_URL, token, uid, { onShopPage: true });
+updateMessagesNav(SUPABASE_URL, token, uid);
 setupNavigationFeedback();
 setupInstall();
 setupStickyHeader();

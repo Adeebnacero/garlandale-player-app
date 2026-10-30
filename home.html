@@ -86,6 +86,7 @@
       <a class="drawer-item" href="#" data-install-menu style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>Install the app</a>
       <a class="drawer-item" href="loyalty.html" data-loyalty-nav style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-4-6.3 4 1.7-7-5.4-4.7 7.1-.6z"/></svg>Loyalty</a>
       <a class="drawer-item" href="payments.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Payment history</a>
+      <a class="drawer-item" href="messages.html" data-messages-nav style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>Messages<span class="drawer-badge" data-messages-count style="display:none;"></span></a>
       <a class="drawer-item" href="calendar.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M8 14h2M14 14h2M8 17h2"/></svg>Club calendar</a>
       <div class="drawer-divider"></div>
       <button class="drawer-item signout" id="logout-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>Sign out</button>
@@ -211,7 +212,7 @@
     getSessionOrTimeout, showSessionCheckError,
     safeMapsLink, locationButtonsHtml, locationMapBoxHtml, handleShowMapClick,
     linkifyText,
-    updateShopNav, setupNavigationFeedback,
+    updateShopNav, updateMessagesNav, setupNavigationFeedback,
     upcomingFixtures, renderHomeBanner,
   } from './page-shared.js';
   import { setupInstall } from './install.js';
@@ -357,6 +358,7 @@
     // currently selected in the switcher below.
     loadNoticeBadge(SUPABASE_URL, accessToken, uid);
     updateShopNav(SUPABASE_URL, accessToken, uid);
+    updateMessagesNav(SUPABASE_URL, accessToken, uid);
     renderHomeBanner(document.getElementById('home-banner'), SUPABASE_URL, accessToken, uid);
     setupNavigationFeedback();
     setupInstall({ card: document.getElementById('install-slot') });

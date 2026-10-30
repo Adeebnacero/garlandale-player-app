@@ -1,6 +1,45 @@
 Garlandale FC Player Portal — COMPLETE build (notice targeting by age group)
 ================================================================================
 
+IN-APP MESSAGES - STAGE 3 OF 4: MESSAGES PAGE (October 2026)
+--------------------------------------------------------------------------------
+Private messages from the club (Club Management > Messages > Player
+Messages > Send in app) now show in the side panel under Messages, just
+above Club calendar (next to Payment history on Home). Not on the bottom
+bar, and never on the Notice Board.
+  - Guardians only: the item is hidden for supporters and accounts with no
+    linked child.
+  - Unread count on the item, and a gold dot on the menu button so a new
+    message is noticed with the panel closed. Same one-hour cache as the
+    notice badge; the Messages page itself always loads fresh.
+  - Each message shows when it was sent and, for guardians with more than
+    one child, which child it's about. Opening the page marks what's shown
+    as read (first read time shows in Club Management); "New" stays on
+    them until the next visit.
+
+Needs Club Management's migrations/2026-10-player-messages.sql (stage 1).
+To switch it on:
+  1. Deploy the two new functions:
+       supabase functions deploy get-my-messages
+       supabase functions deploy mark-messages-read
+  2. Deploy this app as usual (full rebuild). Offline cache is now v17.
+
+Files: messages.html (new), page-shared.js (updateMessagesNav,
+markMessagesNavRead), styles.css, the side panel in calendar, fixtures,
+home, loyalty, notices, profile and shop.html (+ shop.js),
+service-worker.js (v17), supabase/functions/get-my-messages/,
+supabase/functions/mark-messages-read/,
+supabase/functions/_shared/my-messages.js (+ test).
+
+PUSH NOTIFICATIONS - STEP 3 OF 3: URGENT TICK BOX (October 2026)
+--------------------------------------------------------------------------------
+The Urgent tick box is in Club Management (Messages > Notice Board) - see
+that app's README and migrations/2026-10-push-notifications.sql. Nothing in
+this app needs redeploying. The one change here:
+0006_notice_pushes.sql now creates notices.urgent as nullable (null = not
+urgent) so Club Management backups made before it still restore. If you
+already ran 0006, Club Management's migration makes the same change.
+
 PUSH NOTIFICATIONS - STEP 2 OF 3: HOURLY NOTICES (October 2026)
 --------------------------------------------------------------------------------
 New notices are now pushed automatically, at five past every hour:

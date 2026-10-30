@@ -34,7 +34,9 @@ begin
   end if;
 end $$;
 
-alter table public.notices add column if not exists urgent boolean not null default false;
+-- Nullable on purpose (null = not urgent): Club Management's backup restore
+-- re-inserts notices from snapshots taken before this column existed.
+alter table public.notices add column if not exists urgent boolean default false;
 
 comment on column public.notices.urgent is
   'Urgent notices are also pushed during quiet hours (21:00-07:00 SA time).';

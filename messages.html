@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Garlandale FC Player Portal — Messages</title>
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#241a45" />
+<script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
+<link rel="icon" type="image/png" href="icons/favicon.png" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+  <script defer src="/_vercel/insights/script.js"></script>
+<body class="home-page">
+
+<div id="loading" class="loading-page">
+  <div class="loader-emblem" aria-hidden="true"><img src="images/crest.png" alt="" width="48" height="56" /></div>
+  <span data-loading-message>Checking your session…</span>
+  <button type="button" class="loading-retry-btn" data-loading-retry>Try again</button>
+</div>
+
+<script>
+  // Watchdog for the session check below: runs immediately, with no
+  // imports and no network dependency of its own, so it can't get stuck
+  // on the same thing the main module script might get stuck on. This
+  // covers the case the getSessionOrTimeout() safety net in page-shared.js
+  // can't: a full page reload (e.g. the OS discarded this tab while the
+  // app was minimised, then reloaded it on return) where the ES module
+  // imports themselves - fetched fresh over the network - are what hangs,
+  // before any of our own code has had a chance to run.
+  (function () {
+    setTimeout(function () {
+      var appEl = document.getElementById('app');
+      var loadingEl = document.getElementById('loading');
+      if (!loadingEl || (appEl && appEl.style.display !== 'none')) return;
+      if (loadingEl.classList.contains('is-error')) return;
+      var msg = loadingEl.querySelector('[data-loading-message]');
+      if (msg) msg.textContent = "Couldn't check your session. Check your connection and try again.";
+      loadingEl.classList.add('is-error');
+      var retryBtn = loadingEl.querySelector('[data-loading-retry]');
+      if (retryBtn) retryBtn.addEventListener('click', function () { window.location.reload(); });
+    }, 10000);
+  })();
+</script>
+
+<div id="app" style="display:none;">
+  <header class="drilldown-header">
+    <a href="home.html" class="back-btn" aria-label="Back to Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></a>
+    <span class="drilldown-title">Messages</span>
+    <span style="width:22px"></span>
+  </header>
+  <main>
+    <div id="msg-loading" style="color: var(--inkSoft); font-size: 14px;"><span class="spinner-inline" aria-hidden="true"></span>Loading messages&hellip;</div>
+    <div id="msg-error" class="login-error" style="display:none;"></div>
+    <div id="msg-empty" class="msg-empty" style="display:none;">
+      No messages yet. Personal messages from the club, like payment reminders, will appear here.
+    </div>
+    <div id="msg-list" class="msg-list" aria-live="polite"></div>
+  </main>
+</div>
+<script type="module">
+  // Messages: private messages from the club about this guardian's own
+  // children (Club Management -> Player Messages -> "Send in app"). Opened
+  // from the side panel, or straight from a phone notification. Always
+  // loads fresh. Messages shown here are marked read, which clears the
+  // side-panel count and menu dot, and shows as "Read" to the club.
+  import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+  import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+  import {
+    registerServiceWorker, getSessionOrTimeout, showSessionCheckError,
+    setupNavigationFeedback, setupStickyHeader, escapeHtml, markMessagesNavRead,
+  } from './page-shared.js';
+  import { supporterGate } from './supporter.js';
+
+  const loading = document.getElementById('loading');
+  const app = document.getElementById('app');
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    loading.textContent = 'This app has no Supabase connection configured yet.';
+    throw new Error('Missing Supabase config');
+  }
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  let data;
+  try {
+    ({ data } = await getSessionOrTimeout(supabase));
+  } catch (err) {
+    showSessionCheckError(loading);
+    throw err;
+  }
+  if (!data.session) {
+    window.location.href = 'index.html';
+  } else {
+    loading.style.display = 'none';
+    app.style.display = 'block';
+    const uid = data.session.user.id;
+    const accessToken = data.session.access_token;
+
+    registerServiceWorker();
+    setupNavigationFeedback();
+    setupStickyHeader();
+
+    // Messages are about players; supporters go back to Home.
+    const gate = await supporterGate(SUPABASE_URL, accessToken, uid);
+    if (gate.supporter) window.location.replace('home.html');
+    else loadMessages(accessToken, uid);
+  }
+
+  function when(iso) {
+    return new Date(iso).toLocaleString('en-ZA', {
+      weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+      timeZone: 'Africa/Johannesburg',
+    });
+  }
+
+  async function loadMessages(accessToken, uid) {
+    const msgLoading = document.getElementById('msg-loading');
+    const msgError = document.getElementById('msg-error');
+    const msgEmpty = document.getElementById('msg-empty');
+    const msgList = document.getElementById('msg-list');
+
+    let body;
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-messages`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Could not load messages');
+    } catch (err) {
+      msgLoading.style.display = 'none';
+      msgError.textContent = 'Couldn’t load your messages. Check your connection and try again.';
+      msgError.style.display = 'block';
+      msgError.classList.add('visible');
+      return;
+    }
+    msgLoading.style.display = 'none';
+
+    if (!body.guardian) { window.location.replace('home.html'); return; }
+    const messages = body.messages || [];
+    if (messages.length === 0) {
+      msgEmpty.style.display = 'block';
+      markMessagesNavRead(uid);
+      return;
+    }
+
+    msgList.innerHTML = messages.map((m) => `
+      <article class="msg-card${m.read ? '' : ' unread'}">
+        <div class="msg-meta">
+          ${body.multipleChildren && m.playerName ? `<span class="msg-child">${escapeHtml(m.playerName)}</span><span aria-hidden="true">·</span>` : ''}
+          <time datetime="${escapeHtml(m.sentAt)}">${escapeHtml(when(m.sentAt))}</time>
+          ${m.read ? '' : '<span class="msg-new">New</span>'}
+        </div>
+        <p class="msg-body">${escapeHtml(m.body)}</p>
+      </article>`).join('');
+
+    // Mark what's now on screen as read. "New" stays visible until the
+    // next visit, so it's clear which ones just arrived.
+    const unreadIds = messages.filter((m) => !m.read).map((m) => m.id);
+    if (unreadIds.length === 0) { markMessagesNavRead(uid); return; }
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/mark-messages-read`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: unreadIds }),
+      });
+      if (res.ok) markMessagesNavRead(uid);
+    } catch {
+      // Stays unread; tried again next visit.
+    }
+  }
+</script>
+</body>
+</html>
