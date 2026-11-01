@@ -6,7 +6,11 @@
 //   #policy      store policy  #confirm/<id>  after returning from Yoco
 //
 // The cart is kept on this device (localStorage, per logged-in user) and
-// only ever holds product/size ids and quantities. Prices and stock are
+// only ever holds product/size ids, quantities and, for guardians, which
+// child each item is for (playerId). A guardian with one child never sees
+// that choice; with two or more, they pick on the product page and can
+// change it in the cart. The same item and size can be in the cart once
+// per child. Prices and stock are
 // always re-checked by the server at checkout (create-store-checkout).
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
@@ -103,6 +107,9 @@ function writeJSON(key, value) {
 }
 
 let cart = readJSON(CART_KEY, []).filter((l) => l && typeof l.productId === 'string' && Number.isInteger(l.qty));
+// One cart line per product + size + child.
+const lineKey = (l) => `${l.productId}|${l.sizeId || ''}|${l.playerId || ''}`;
+const sameLine = (a, b) => lineKey(a) === lineKey(b);
 const saveCart = () => { writeJSON(CART_KEY, cart); updateCartBadge(); };
 
 function updateCartBadge() {
@@ -120,7 +127,15 @@ let shopError = '';
 let orders = null;        // response from get-my-orders, loaded when needed
 let ordersError = '';
 let flash = '';           // one-off message shown at the top of the next screen
-let detailSel = { productId: null, sizeId: null, qty: 1 };
+let detailSel = { productId: null, sizeId: null, qty: 1, playerId: null };
+// The guardian's children ({ id, name, age_group }), [] for supporters,
+// null until loaded. Only shown as a choice when there's more than one.
+let kids = null;
+let kidsReady = null;     // promise that settles once kids is known
+const chooseKid = () => Array.isArray(kids) && kids.length > 1;
+const kidById = (id) => (kids || []).find((k) => k.id === id) || null;
+const kidLabel = (k) => (k.age_group && k.age_group !== 'Unassigned' ? `${k.name} (${k.age_group})` : k.name);
+const firstName = (name) => String(name || '').split(' ')[0];
 let form = null;          // checkout form values
 let formErrors = {};
 let paying = false;
@@ -228,7 +243,7 @@ function viewShop() {
 function viewProduct(id) {
   const p = productById(id);
   if (!p) return `${backLink('#', 'Shop')}<div class="shop-empty"><h2>This item isn’t available</h2><p>It may have sold out or been removed from the shop.</p><button class="shop-btn-gold" type="button" data-go="#">Back to the shop</button></div>`;
-  if (detailSel.productId !== p.id) detailSel = { productId: p.id, sizeId: null, qty: 1 };
+  if (detailSel.productId !== p.id) detailSel = { productId: p.id, sizeId: null, qty: 1, playerId: null };
   const a = availability(p);
   return `
     ${backLink('#', 'Shop')}
@@ -257,13 +272,17 @@ function productControls(p) {
   } else if (!p.hasSizes && p.saleMode === 'stock' && p.state !== 'out' && room === 0) {
     hint = 'You already have all available stock in your cart';
   }
-  const canAdd = p.state !== 'out' && !needSize && room > 0;
-  const label = p.state === 'out' ? 'Sold out' : needSize ? 'Choose a size' : room === 0 ? 'All available stock is in your cart' : p.saleMode === 'preorder' ? 'Add pre-order to cart' : 'Add to cart';
+  const needKid = chooseKid() && !kidById(detailSel.playerId);
+  const canAdd = p.state !== 'out' && !needSize && !needKid && room > 0;
+  const label = p.state === 'out' ? 'Sold out' : needSize ? 'Choose a size' : room === 0 ? 'All available stock is in your cart' : needKid ? 'Choose who it’s for' : p.saleMode === 'preorder' ? 'Add pre-order to cart' : 'Add to cart';
   return `
     ${p.hasSizes ? `
       <p class="shop-field-label">Size</p>
       <div class="size-row">${p.sizes.map((s) => `<button type="button" class="size-chip${detailSel.sizeId === s.id ? ' on' : ''}" data-size="${s.id}" ${s.state === 'out' ? `disabled aria-label="${escapeAttr(s.label)}, sold out"` : `aria-pressed="${detailSel.sizeId === s.id}"`}>${escapeHtml(s.label)}</button>`).join('')}</div>
       <p class="size-hint">${hint}</p>` : `<p class="size-hint" style="margin-top:0">${hint}</p>`}
+    ${p.state !== 'out' && chooseKid() ? `
+      <p class="shop-field-label">Who is it for?</p>
+      <div class="size-row kid-row">${kids.map((k) => `<button type="button" class="size-chip${detailSel.playerId === k.id ? ' on' : ''}" data-kid="${escapeAttr(k.id)}" aria-pressed="${detailSel.playerId === k.id}">${escapeHtml(firstName(k.name))}${k.age_group && k.age_group !== 'Unassigned' ? ` <small>${escapeHtml(k.age_group)}</small>` : ''}</button>`).join('')}</div>` : ''}
     ${p.state !== 'out' ? `
       <p class="shop-field-label">Quantity</p>
       <div class="qty" style="margin-bottom:22px">
@@ -283,7 +302,7 @@ function refreshProductControls(pressed) {
   const p = productById(detailSel.productId);
   if (!box || !p || route().name !== 'product') { render(); return; }
   const hadFocus = pressed && document.activeElement === pressed;
-  const key = pressed ? (pressed.dataset.size ? `[data-size="${pressed.dataset.size}"]` : pressed.dataset.dq ? `[data-dq="${pressed.dataset.dq}"]` : pressed.hasAttribute('data-add') ? '[data-add]' : '') : '';
+  const key = pressed ? (pressed.dataset.size ? `[data-size="${pressed.dataset.size}"]` : pressed.dataset.kid ? `[data-kid="${pressed.dataset.kid}"]` : pressed.dataset.dq ? `[data-dq="${pressed.dataset.dq}"]` : pressed.hasAttribute('data-add') ? '[data-add]' : '') : '';
   box.innerHTML = productControls(p);
   updateCartBadge();
   if (!hadFocus || !key) return;
@@ -325,10 +344,15 @@ function viewCart() {
           <div>
             <h3>${escapeHtml(l.product.name)}${l.product.saleMode === 'preorder' ? '<span class="tag-pre">Pre-order</span>' : ''}</h3>
             <p class="cart-meta">${size ? `Size ${escapeHtml(size.label)} · ` : ''}${money(l.product.price)} each</p>
+            ${chooseKid() ? `<label class="cart-for${kidById(l.playerId) ? '' : ' missing'}">For
+              <select data-cp="${i}" aria-label="Who ${escapeAttr(l.product.name)} is for">
+                ${kidById(l.playerId) ? '' : '<option value="" selected>Choose…</option>'}
+                ${kids.map((k) => `<option value="${escapeAttr(k.id)}" ${k.id === l.playerId ? 'selected' : ''}>${escapeHtml(kidLabel(k))}</option>`).join('')}
+              </select></label>` : ''}
             <div class="qty">
               <button type="button" data-cq="${i}:-1" aria-label="Fewer" ${l.qty <= 1 ? 'disabled' : ''}>−</button>
               <output>${l.qty}</output>
-              <button type="button" data-cq="${i}:1" aria-label="More" ${l.qty >= max ? 'disabled' : ''}>+</button>
+              <button type="button" data-cq="${i}:1" aria-label="More" ${inCart(l.productId, l.sizeId) >= max ? 'disabled' : ''}>+</button>
             </div>
           </div>
           <div>
@@ -373,7 +397,7 @@ function viewCheckout() {
     </div>
     <div class="card" style="padding:16px 18px">
       <p class="card-label">Order summary</p>
-      ${lines.map((l) => { const s = sizeOf(l.product, l.sizeId); return `<div class="sum-row"><span>${l.qty} × ${escapeHtml(l.product.name)}${s ? ` (${escapeHtml(s.label)})` : ''}</span><span>${money(l.qty * l.product.price)}</span></div>`; }).join('')}
+      ${lines.map((l) => { const s = sizeOf(l.product, l.sizeId); const k = chooseKid() ? kidById(l.playerId) : null; return `<div class="sum-row"><span>${l.qty} × ${escapeHtml(l.product.name)}${s ? ` (${escapeHtml(s.label)})` : ''}${k ? `<span class="sum-for">for ${escapeHtml(k.name)}</span>` : ''}</span><span>${money(l.qty * l.product.price)}</span></div>`; }).join('')}
       <div style="border-top:1px solid var(--line); margin-top:8px; padding-top:6px">${totalsHtml(subtotal)}</div>
     </div>
     <div class="card" style="padding:16px 18px">
@@ -430,7 +454,7 @@ function viewOrder(id) {
       const st = lineGroupStatus(lines);
       return `<div class="card" style="padding:16px 18px">
         <p class="group-title">${groups.length > 1 ? title : 'Items'}<span class="order-status ${st}">${STATUS_TEXT[st]}</span></p>
-        ${lines.map((l) => `<div class="sum-row"><span>${l.quantity} × ${escapeHtml(l.name)}${l.size ? ` (${escapeHtml(l.size)})` : ''}</span><span>${money(l.quantity * l.unitPrice)}</span></div>`).join('')}
+        ${lines.map((l) => `<div class="sum-row"><span>${l.quantity} × ${escapeHtml(l.name)}${l.size ? ` (${escapeHtml(l.size)})` : ''}${l.playerName ? `<span class="sum-for">for ${escapeHtml(l.playerName)}</span>` : ''}</span><span>${money(l.quantity * l.unitPrice)}</span></div>`).join('')}
         <div style="margin-top:14px">${stepsHtml(lines)}</div>
       </div>`;
     }).join('')}
@@ -594,6 +618,7 @@ $view.addEventListener('click', async (e) => {
   if (t.hasAttribute('data-reload')) { shopError = ''; shop = null; render(); loadShop(); return; }
   if (t.hasAttribute('data-reload-orders')) { ordersError = ''; orders = null; render(); return; }
   if (t.dataset.size) { detailSel.sizeId = t.dataset.size; detailSel.qty = 1; refreshProductControls(t); return; }
+  if (t.dataset.kid) { detailSel.playerId = t.dataset.kid; refreshProductControls(t); return; }
   if (t.dataset.dq) { detailSel.qty = Math.max(1, detailSel.qty + Number(t.dataset.dq)); refreshProductControls(t); return; }
   if (t.hasAttribute('data-add')) {
     const p = productById(detailSel.productId);
@@ -602,13 +627,16 @@ $view.addEventListener('click', async (e) => {
     const room = maxQtyFor(p, sizeId) - inCart(p.id, sizeId);
     const qty = Math.min(detailSel.qty, room);
     if (qty <= 0) return;
-    const line = cart.find((l) => l.productId === p.id && (l.sizeId || null) === sizeId);
-    if (line) line.qty += qty; else cart.push({ productId: p.id, sizeId, qty });
+    const kid = chooseKid() ? kidById(detailSel.playerId) : (kids && kids.length === 1 ? kids[0] : null);
+    if (chooseKid() && !kid) return;
+    const add = { productId: p.id, sizeId, playerId: kid ? kid.id : null, qty };
+    const line = cart.find((l) => sameLine(l, add));
+    if (line) line.qty += qty; else cart.push(add);
     saveCart();
     detailSel.qty = 1;
     const size = sizeOf(p, sizeId);
     refreshProductControls(t);
-    toast(`Added ${qty} × ${p.name}${size ? ` (${size.label})` : ''}`);
+    toast(`Added ${qty} × ${p.name}${size ? ` (${size.label})` : ''}${kid && chooseKid() ? ` for ${firstName(kid.name)}` : ''}`);
     return;
   }
   if (t.dataset.cq) {
@@ -616,14 +644,16 @@ $view.addEventListener('click', async (e) => {
     const lines = cartLines();
     const l = lines[i];
     if (!l) return;
-    const target = cart.find((c) => c.productId === l.productId && (c.sizeId || null) === (l.sizeId || null));
-    target.qty = Math.min(Math.max(1, target.qty + d), maxQtyFor(l.product, l.sizeId));
+    const target = cart.find((c) => sameLine(c, l));
+    // The stock limit covers every child's line for this item and size.
+    const others = inCart(l.productId, l.sizeId) - target.qty;
+    target.qty = Math.min(Math.max(1, target.qty + d), Math.max(1, maxQtyFor(l.product, l.sizeId) - others));
     saveCart(); render(); return;
   }
   if (t.dataset.remove) {
     const l = cartLines()[Number(t.dataset.remove)];
     if (!l) return;
-    cart = cart.filter((c) => !(c.productId === l.productId && (c.sizeId || null) === (l.sizeId || null)));
+    cart = cart.filter((c) => !sameLine(c, l));
     saveCart(); render(); toast(`Removed ${l.product.name}`); return;
   }
   if (t.hasAttribute('data-pay')) { await pay(); }
@@ -637,6 +667,15 @@ $view.addEventListener('input', (e) => {
 });
 $view.addEventListener('change', (e) => {
   if (e.target.dataset.f === 'agreed' && form) form.agreed = e.target.checked;
+  if (e.target.dataset.cp !== undefined) {
+    const l = cartLines()[Number(e.target.dataset.cp)];
+    const playerId = e.target.value || null;
+    if (!l || !kidById(playerId)) return;
+    const line = cart.find((c) => sameLine(c, l));
+    const into = cart.find((c) => c !== line && sameLine(c, { ...l, playerId }));
+    if (into) { into.qty += line.qty; cart = cart.filter((c) => c !== line); } else line.playerId = playerId;
+    saveCart(); render();
+  }
 });
 
 document.getElementById('cart-btn').addEventListener('click', () => go('#cart'));
@@ -652,13 +691,24 @@ async function pay() {
   formErrors = errors;
   if (Object.keys(errors).length) { render(); return; }
 
+  // Every item must say which child it's for when there's more than one.
+  // If the players couldn't be loaded, the order still goes through: the
+  // server fills in the player for one-child accounts.
+  await kidsReady;
+  if (chooseKid() && cartLines().some((l) => !kidById(l.playerId))) {
+    flash = '!Choose who each item is for, then check out again.';
+    go('#cart');
+    return;
+  }
+  const onlyKid = kids && kids.length === 1 ? kids[0].id : null;
+
   paying = true;
   render();
   try {
     const r = await api('create-store-checkout', {
       method: 'POST',
       body: JSON.stringify({
-        items: cartLines().map((l) => ({ productId: l.productId, sizeId: l.sizeId || null, quantity: l.qty })),
+        items: cartLines().map((l) => ({ productId: l.productId, sizeId: l.sizeId || null, quantity: l.qty, playerId: onlyKid || l.playerId || null })),
         name, phone, email, agreedToPolicy: true,
       }),
     });
@@ -693,18 +743,34 @@ setupStickyHeader();
 
 // Guardian's name and phone from the linked player's record (loaded
 // below), used to pre-fill checkout the first time.
+let kidsLoaded;
+kidsReady = new Promise((res) => { kidsLoaded = res; });
+// Sets the guardian's children once known, drops cart choices for a child
+// no longer linked, and redraws if a screen that shows the choice is open.
+function setKids(list) {
+  kids = list;
+  kidsLoaded();
+  if (!chooseKid()) return;
+  let changed = false;
+  for (const l of cart) if (l.playerId && !kidById(l.playerId)) { l.playerId = null; changed = true; }
+  if (changed) saveCart();
+  if (['product', 'cart', 'checkout'].includes(route().name)) render();
+}
+
 (async () => {
   try {
     // Supporters: their own details; unapproved ones go to the waiting screen.
     const gate = await supporterGate(SUPABASE_URL, token, uid);
     if (gate.redirected) return;
     if (gate.supporter) {
+      setKids([]);
       profileDefaults.name = gate.account.supporter.fullName || '';
       profileDefaults.phone = gate.account.supporter.phone || '';
       return;
     }
     const playersBody = await loadMyPlayers(SUPABASE_URL, token, uid);
     const players = playersBody.players || [];
+    setKids(players);
     const playerId = resolveSelectedPlayer(uid, players);
     if (!playerId) return;
     loadActiveStatus(SUPABASE_URL, token, uid, playerId);
@@ -716,7 +782,10 @@ setupStickyHeader();
     });
     profileDefaults.name = profile.guardian_name || profile.guardianName || '';
     profileDefaults.phone = profile.guardian_phone || profile.guardianPhone || '';
-  } catch { /* pre-fill is a convenience only */ }
+  } catch {
+    /* pre-fill is a convenience only; checkout copes without the players */
+    if (kids === null) kidsLoaded();
+  }
 })();
 
 // Coming back from Yoco.

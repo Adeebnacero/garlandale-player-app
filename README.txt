@@ -1,6 +1,35 @@
 Garlandale FC Player Portal — COMPLETE build (notice targeting by age group)
 ================================================================================
 
+SHOP: WHO EACH ITEM IS FOR (November 2026)
+--------------------------------------------------------------------------------
+Guardians with more than one child now choose who each shop item is for:
+"Who is it for?" on the product page, and a "For" dropdown on each cart
+line to change it. The same item and size can go in the cart once per
+child (twins in the same tracksuit size). Guardians with one child and
+supporters see nothing new. My orders shows "for <name>" under each item.
+Club Management shows the player and age group on every order.
+
+  - The server checks every chosen child is linked to the account, and
+    fills in the child automatically for one-child accounts.
+  - Older copies of the app that don't send a choice still check out; for
+    multi-child guardians those items show "Not recorded" in Club
+    Management, with a suggestion from the guardian's phone number.
+
+To switch it on, in this order:
+  1. Club Management: run migrations/2026-11-store-order-players.sql.
+  2. Run supabase/migrations/0007_store_order_players.sql here (it stops
+     with a message if step 1 hasn't been done).
+  3. Deploy the two changed functions:
+       supabase functions deploy create-store-checkout
+       supabase functions deploy get-my-orders
+  4. Deploy this app as usual (full rebuild). Offline cache is now v18.
+
+Files: shop.js, styles.css, service-worker.js (v18),
+supabase/functions/_shared/store.js (+ test),
+supabase/functions/create-store-checkout/, supabase/functions/get-my-orders/,
+supabase/migrations/0007_store_order_players.sql (new).
+
 IN-APP MESSAGES - STAGE 3 OF 4: MESSAGES PAGE (October 2026)
 --------------------------------------------------------------------------------
 Private messages from the club (Club Management > Messages > Player

@@ -1358,3 +1358,11 @@ body.cal-sheet-open { overflow: hidden; }
 }
 .msg-body { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
 .msg-empty { color: var(--inkSoft); font-size: 14px; text-align: center; padding: 24px 8px; line-height: 1.5; }
+
+/* Shop: which child an item is for (guardians with more than one child) */
+.kid-row .size-chip small { font-weight: 600; opacity: .75; margin-left: 2px; }
+.cart-for { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; color: var(--inkSoft); margin: 0 0 8px; }
+.cart-for select { flex: 1; min-width: 0; max-width: 220px; padding: 7px 10px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--card); font: 600 13px var(--font-sans); color: var(--ink); }
+.cart-for select:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.cart-for.missing select { border-color: var(--danger); }
+.sum-for { display: block; font-size: 12px; color: var(--inkSoft); font-weight: 500; }
