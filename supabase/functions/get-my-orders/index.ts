@@ -21,7 +21,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const SELECT = "id, order_number, status, paid_at, subtotal, admin_fee, admin_fee_percent, total, refunded_total, guardian_name, guardian_phone, guardian_email, store_order_items(product_name, size_label, quantity, unit_price, is_preorder, status, sort_order)";
+const SELECT = "id, order_number, status, paid_at, subtotal, admin_fee, admin_fee_percent, total, refunded_total, guardian_name, guardian_phone, guardian_email, store_order_items(product_name, size_label, quantity, unit_price, is_preorder, status, sort_order, player_name, player_age_group)";
 
 Deno.serve(async (req) => {
   const CORS_HEADERS = buildCorsHeaders(req, "GET, OPTIONS");
