@@ -77,7 +77,16 @@ export function shopProductView(row, today, photoBaseUrl) {
 
 /**
  * Checks the body sent by the shop page to create-store-checkout.
- * Returns { ok: true, items, name, phone, email } or { ok: false, error }.
+ * Returns { ok: true, items, allocations, name, phone, email } or
+ * { ok: false, error }.
+ *
+ * Each cart line may say which player it's for (playerId). The cart can
+ * hold the same product and size twice for two different children, so:
+ *   items        one entry per product + size, quantities added up. This is
+ *                what store_create_order() prices, exactly as before.
+ *   allocations  one entry per product + size + player, saying how many of
+ *                that item are for which player (player_id null when the
+ *                line didn't say). Saved by store_assign_item_players().
  */
 export function parseCheckoutBody(body) {
   if (!body || typeof body !== "object") return { ok: false, error: "Invalid request." };
@@ -93,7 +102,8 @@ export function parseCheckoutBody(body) {
   if (!Array.isArray(body.items) || body.items.length === 0) return { ok: false, error: "Your cart is empty." };
   if (body.items.length > MAX_LINES) return { ok: false, error: "That’s too many different items for one order. Split it into two orders." };
 
-  const items = [];
+  const merged = new Map();
+  const allocs = new Map();
   for (const it of body.items) {
     const productId = typeof it?.productId === "string" ? it.productId : "";
     const sizeId = it?.sizeId == null || it.sizeId === "" ? null : typeof it.sizeId === "string" ? it.sizeId : "bad";
@@ -104,9 +114,54 @@ export function parseCheckoutBody(body) {
     if (!Number.isInteger(qty) || qty < 1 || qty > MAX_QTY_PER_LINE) {
       return { ok: false, error: `Quantities must be between 1 and ${MAX_QTY_PER_LINE}.` };
     }
-    items.push({ product_id: productId, size_id: sizeId, quantity: qty });
+    const playerId = it?.playerId == null || it.playerId === "" ? null : typeof it.playerId === "string" ? it.playerId : "bad";
+    if (playerId !== null && !UUID_RE.test(playerId)) {
+      return { ok: false, error: "Something in your cart isn’t valid. Remove it and add it again." };
+    }
+    const key = `${productId}|${sizeId ?? ""}`;
+    const m = merged.get(key) || { product_id: productId, size_id: sizeId, quantity: 0 };
+    m.quantity += qty;
+    if (m.quantity > MAX_QTY_PER_LINE) {
+      return { ok: false, error: `You can order at most ${MAX_QTY_PER_LINE} of one item in each size per order.` };
+    }
+    merged.set(key, m);
+    const akey = `${key}|${playerId ?? ""}`;
+    const a = allocs.get(akey) || { product_id: productId, size_id: sizeId, player_id: playerId, quantity: 0 };
+    a.quantity += qty;
+    allocs.set(akey, a);
   }
-  return { ok: true, items, name, phone, email };
+  return { ok: true, items: [...merged.values()], allocations: [...allocs.values()], name, phone, email };
+}
+
+/**
+ * Checks the players chosen in the cart against the players linked to the
+ * account (linkedIds). Returns { ok: true, allocations } with gaps filled
+ * where there's only one possible player, or { ok: false, error }.
+ *
+ *   - Supporters (no linked players) can't name a player.
+ *   - A player named must be linked to this account.
+ *   - One linked player: every line is for them.
+ *   - More than one: lines that didn't say stay null. Only older copies of
+ *     the app send that; the order still goes through, and Club
+ *     Management suggests the player from the guardian's phone number.
+ */
+export function resolveItemPlayers(allocations, linkedIds) {
+  const linked = new Set(linkedIds || []);
+  const only = linked.size === 1 ? [...linked][0] : null;
+  const out = new Map();
+  for (const a of allocations) {
+    if (a.player_id && !linked.has(a.player_id)) {
+      return { ok: false, error: linked.size
+        ? "One of the players in your cart isn’t linked to your account. Choose again in your cart."
+        : "This account can’t order for a player." };
+    }
+    const playerId = a.player_id || only;
+    const key = `${a.product_id}|${a.size_id ?? ""}|${playerId ?? ""}`;
+    const prev = out.get(key);
+    if (prev) prev.quantity += a.quantity;
+    else out.set(key, { ...a, player_id: playerId });
+  }
+  return { ok: true, allocations: [...out.values()] };
 }
 
 /**
@@ -135,6 +190,8 @@ export function orderView(row) {
       unitPrice: Number(l.unit_price),
       isPreorder: !!l.is_preorder,
       status: l.status,
+      playerName: l.player_name || "",
+      playerAgeGroup: l.player_age_group || "",
     }));
   return {
     id: row.id,

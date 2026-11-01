@@ -6,7 +6,7 @@
 //
 // Same zero-dependency style as billing.test.js.
 
-import { shopProductView, parseCheckoutBody, orderStatus, orderView, todayInSA } from "./store.js";
+import { shopProductView, parseCheckoutBody, resolveItemPlayers, orderStatus, orderView, todayInSA } from "./store.js";
 
 function assertEquals(actual, expected, msg) {
   const a = JSON.stringify(actual), e = JSON.stringify(expected);
@@ -81,4 +81,52 @@ Deno.test("order view", () => {
 Deno.test("today in South Africa", () => {
   assertEquals(todayInSA(new Date("2026-09-24T22:30:00Z")), "2026-09-25");
   assertEquals(todayInSA(new Date("2026-09-25T21:59:00Z")), "2026-09-25");
+});
+
+const P1 = "a0000000-0000-0000-0000-000000000001";
+const S1 = "b0000000-0000-0000-0000-000000000001";
+const ZAID = "c0000000-0000-0000-0000-00000000000a";
+const AMINA = "c0000000-0000-0000-0000-00000000000b";
+const BODY = { agreedToPolicy: true, name: "Ameer", phone: "072 201 2008", email: "a@x.co" };
+
+Deno.test("cart lines for two children merge into one item but keep who each is for", () => {
+  const r = parseCheckoutBody({ ...BODY, items: [
+    { productId: P1, sizeId: S1, quantity: 2, playerId: ZAID },
+    { productId: P1, sizeId: S1, quantity: 1, playerId: AMINA },
+  ] });
+  assert(r.ok, "accepted");
+  assertEquals(r.items, [{ product_id: P1, size_id: S1, quantity: 3 }]);
+  assertEquals(r.allocations, [
+    { product_id: P1, size_id: S1, player_id: ZAID, quantity: 2 },
+    { product_id: P1, size_id: S1, player_id: AMINA, quantity: 1 },
+  ]);
+  assert(!parseCheckoutBody({ ...BODY, items: [{ productId: P1, quantity: 1, playerId: "nope" }] }).ok, "bad player id");
+  const tooMany = parseCheckoutBody({ ...BODY, items: [
+    { productId: P1, sizeId: S1, quantity: 6, playerId: ZAID },
+    { productId: P1, sizeId: S1, quantity: 5, playerId: AMINA },
+  ] });
+  assert(!tooMany.ok, "merged quantity still capped");
+  const old = parseCheckoutBody({ ...BODY, items: [{ productId: P1, quantity: 1 }] });
+  assertEquals(old.allocations, [{ product_id: P1, size_id: null, player_id: null, quantity: 1 }]);
+});
+
+Deno.test("player choices are checked against the account's children", () => {
+  const a = (player_id, quantity = 1) => ({ product_id: P1, size_id: null, player_id, quantity });
+  // One child: lines that didn't say are for them, and merge.
+  assertEquals(resolveItemPlayers([a(null), a(ZAID, 2)], [ZAID]).allocations, [a(ZAID, 3)]);
+  // Two children: a choice must be one of them; no choice stays null (older app).
+  assert(resolveItemPlayers([a(ZAID), a(AMINA)], [ZAID, AMINA]).ok, "both children");
+  assertEquals(resolveItemPlayers([a(null)], [ZAID, AMINA]).allocations, [a(null)]);
+  assert(!resolveItemPlayers([a("c0000000-0000-0000-0000-0000000000ff")], [ZAID, AMINA]).ok, "someone else's child");
+  // Supporters can't name a player.
+  assert(!resolveItemPlayers([a(ZAID)], []).ok, "supporter naming a player");
+  assertEquals(resolveItemPlayers([a(null)], []).allocations, [a(null)]);
+});
+
+Deno.test("orders show who each item is for", () => {
+  const o = orderView({ id: "o", store_order_items: [
+    { product_name: "Tracksuit", quantity: 1, unit_price: "625", status: "paid", player_name: "Zaid Ebrahim", player_age_group: "U10" },
+    { product_name: "Bottle", quantity: 1, unit_price: "50", status: "paid" },
+  ] });
+  assertEquals(o.lines.map((l) => [l.playerName, l.playerAgeGroup]), [["Zaid Ebrahim", "U10"], ["", ""]]);
 });

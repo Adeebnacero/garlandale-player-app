@@ -3,8 +3,8 @@
 // Player-facing endpoint: turns the guardian's cart into an order and
 // starts a Yoco hosted checkout for it.
 //
-//   POST { items: [{ productId, sizeId, quantity }], name, phone, email,
-//          agreedToPolicy: true }
+//   POST { items: [{ productId, sizeId, quantity, playerId }], name, phone,
+//          email, agreedToPolicy: true }
 //   -> { redirectUrl, orderId }
 //
 // The cart only says WHAT and HOW MANY. Prices, the admin fee, stock,
@@ -17,13 +17,19 @@
 // and an orderId, and never a playerId, so it can never be recorded as a
 // fee payment (see yoco-webhook).
 //
+// playerId says which of the guardian's children an item is for. It's
+// checked against guardian_players here and again in the database, saved
+// on the order's items by store_assign_item_players() before payment, and
+// shown to staff in Club Management (Store > Orders). Needs
+// supabase/migrations/0007_store_order_players.sql.
+//
 // Uses the same secrets as create-yoco-checkout: YOCO_SECRET_KEY, APP_URL.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { approvedSupporter } from "../_shared/account.js";
 import { buildCorsHeaders } from "../_shared/cors.js";
 import { checkRateLimit } from "../_shared/rate-limit.js";
-import { parseCheckoutBody } from "../_shared/store.js";
+import { parseCheckoutBody, resolveItemPlayers } from "../_shared/store.js";
 import { YOCO_API_HOST } from "../_shared/yoco.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -54,15 +60,16 @@ Deno.serve(async (req) => {
   if (!rl.allowed) return json({ error: "Too many requests - please slow down." }, 429);
 
   // Guardians (linked to a player) and approved supporters can buy.
-  const { count: linkCount, error: linkErr } = await adminClient
+  const { data: links, error: linkErr } = await adminClient
     .from("guardian_players")
-    .select("player_id", { count: "exact", head: true })
+    .select("player_id")
     .eq("auth_user_id", userId);
   if (linkErr) {
     console.error("create-store-checkout: failed to check guardian link", linkErr);
     return json({ error: "Could not start checkout - please try again." }, 500);
   }
-  if (!linkCount && !(await approvedSupporter(adminClient, userId))) {
+  const linkedIds: string[] = (links ?? []).map((l: { player_id: string }) => l.player_id);
+  if (!linkedIds.length && !(await approvedSupporter(adminClient, userId))) {
     return json({ error: "This account can’t use the shop yet." }, 403);
   }
 
@@ -74,6 +81,12 @@ Deno.serve(async (req) => {
   }
   const parsed = parseCheckoutBody(body);
   if (!parsed.ok) return json({ error: parsed.error }, 400);
+  const who = resolveItemPlayers(parsed.allocations, linkedIds);
+  if (!who.ok) return json({ error: who.error }, 400);
+  const allocations: { player_id: string | null }[] = who.allocations ?? [];
+  if (allocations.some((a) => !a.player_id) && linkedIds.length > 1) {
+    console.warn("create-store-checkout: cart without player choices from a multi-child guardian (older app?)", userId);
+  }
 
   // Price, check and save the order. Any problem with the cart comes back
   // as a plain-language error from the database (sold out, closed, etc.).
@@ -92,6 +105,21 @@ Deno.serve(async (req) => {
   }
 
   const orderId: string = order.order_id;
+
+  // Record who each item is for, before payment. If this fails the order
+  // stays unpaid (like an abandoned checkout) and nothing is charged.
+  if (allocations.some((a) => a.player_id)) {
+    const { error: assignErr } = await adminClient.rpc("store_assign_item_players", {
+      p_order_id: orderId,
+      p_user: userId,
+      p_allocations: allocations,
+    });
+    if (assignErr) {
+      if (assignErr.code === "P0001") return json({ error: assignErr.message }, 400);
+      console.error("create-store-checkout: store_assign_item_players failed", assignErr);
+      return json({ error: "Could not start checkout - please try again." }, 500);
+    }
+  }
   const amountCents = Math.round(Number(order.total) * 100);
 
   let yocoRes: Response;

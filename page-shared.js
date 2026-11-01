@@ -6,7 +6,7 @@
 // service worker registration, and HTML-escaping. Extracted here so a fix
 // only has to happen in one place instead of five.
 
-import { cachedFetch, clearUserCache, saDate } from './cache.js';
+import { cachedFetch, clearUserCache, invalidateCacheKey, saDate } from './cache.js';
 import { removePushOnSignOut } from './push.js';
 
 // ---------------------------------------------------------------------------
@@ -501,6 +501,56 @@ export function currentNotices(notices) {
 // in and out), then checks get-shop?summary=1 in the background, so
 // switching the shop on or off in Club Management shows up the next time
 // a page opens. Non-critical: if the check fails, nothing changes.
+// Messages (side panel): private messages from the club about the
+// guardian's own children (Club Management -> Player Messages -> "Send in
+// app"). Shows the side-panel item for guardians only, its unread count,
+// and a dot on the menu button so a new message is noticed even though
+// the panel is closed. Uses the same one-hour cache as the notice badge;
+// the Messages page itself always loads fresh and refreshes this.
+// The last answer is remembered per user so the item doesn't flicker in.
+export async function updateMessagesNav(SUPABASE_URL, accessToken, userId, { force = false } = {}) {
+  const key = `gfc_messages_nav_${userId}`;
+  const apply = ({ guardian, unread }) => {
+    document.querySelectorAll('[data-messages-nav]').forEach((el) => { el.style.display = guardian ? 'flex' : 'none'; });
+    document.querySelectorAll('[data-messages-count]').forEach((el) => {
+      el.textContent = unread > 99 ? '99+' : String(unread);
+      el.style.display = guardian && unread > 0 ? 'inline-flex' : 'none';
+    });
+    const btn = document.getElementById('menu-btn');
+    if (btn) {
+      if (!btn.dataset.baseLabel) btn.dataset.baseLabel = btn.getAttribute('aria-label') || 'Menu';
+      const dot = guardian && unread > 0;
+      btn.classList.toggle('has-unread', dot);
+      btn.setAttribute('aria-label', dot ? `${btn.dataset.baseLabel} – new messages` : btn.dataset.baseLabel);
+    }
+  };
+  try {
+    const saved = JSON.parse(localStorage.getItem(key) || 'null');
+    if (saved) apply(saved);
+  } catch { /* storage unavailable */ }
+  try {
+    const body = await cachedFetch(userId, 'get-my-messages:summary', async () => {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/get-my-messages?summary=1`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Could not load messages');
+      return json;
+    }, { force });
+    const state = { guardian: !!body.guardian, unread: Number(body.unread) || 0 };
+    apply(state);
+    try { localStorage.setItem(key, JSON.stringify(state)); } catch { /* storage unavailable */ }
+  } catch {
+    // Offline or not deployed yet - keep whatever is showing.
+  }
+}
+
+/** After the Messages page has marked everything read: clear the dot now. */
+export function markMessagesNavRead(userId) {
+  invalidateCacheKey(userId, 'get-my-messages:summary');
+  try { localStorage.setItem(`gfc_messages_nav_${userId}`, JSON.stringify({ guardian: true, unread: 0 })); } catch { /* storage unavailable */ }
+}
+
 export async function updateShopNav(SUPABASE_URL, accessToken, userId, { onShopPage = false } = {}) {
   const key = `gfc_shop_open_${userId}`;
   const apply = (open) => {
