@@ -1335,13 +1335,13 @@ body.cal-sheet-open { overflow: hidden; }
   justify-content: center;
   box-shadow: 0 0 0 2px var(--indigo);
 }
-/* "You have N new messages" strip on Home, above the tiles */
+/* "You have N new messages" strip: first thing on Home, above banners and tiles */
 .msg-strip {
   align-items: center;
   gap: 10px;
   min-height: 48px;
   padding: 10px 14px;
-  margin: 12px 0 0;
+  margin: 0 0 14px;
   border-radius: 14px;
   border: 1px solid #E9D9A6;
   background: #FBF3DC;
