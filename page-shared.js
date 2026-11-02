@@ -501,13 +501,16 @@ export function currentNotices(notices) {
 // in and out), then checks get-shop?summary=1 in the background, so
 // switching the shop on or off in Club Management shows up the next time
 // a page opens. Non-critical: if the check fails, nothing changes.
-// Messages (side panel): private messages from the club about the
-// guardian's own children (Club Management -> Player Messages -> "Send in
-// app"). Shows the side-panel item for guardians only, its unread count,
-// and a dot on the menu button so a new message is noticed even though
-// the panel is closed. Uses the same one-hour cache as the notice badge;
-// the Messages page itself always loads fresh and refreshes this.
-// The last answer is remembered per user so the item doesn't flicker in.
+// Messages: private messages from the club about the guardian's own
+// children (Club Management -> Player Messages -> "Send in app"). For
+// guardians only, this shows:
+//   - the envelope in the top bar of every page, with the unread count
+//     ([data-messages-header], count in [data-messages-count]);
+//   - the "You have N new messages" strip on Home ([data-messages-strip]);
+//   - the Messages item and its count in the side panel.
+// Uses the same one-hour cache as the notice badge; the Messages page
+// itself always loads fresh and refreshes this. The last answer is
+// remembered per user so nothing flickers in.
 export async function updateMessagesNav(SUPABASE_URL, accessToken, userId, { force = false } = {}) {
   const key = `gfc_messages_nav_${userId}`;
   const apply = ({ guardian, unread }) => {
@@ -516,13 +519,15 @@ export async function updateMessagesNav(SUPABASE_URL, accessToken, userId, { for
       el.textContent = unread > 99 ? '99+' : String(unread);
       el.style.display = guardian && unread > 0 ? 'inline-flex' : 'none';
     });
-    const btn = document.getElementById('menu-btn');
-    if (btn) {
-      if (!btn.dataset.baseLabel) btn.dataset.baseLabel = btn.getAttribute('aria-label') || 'Menu';
-      const dot = guardian && unread > 0;
-      btn.classList.toggle('has-unread', dot);
-      btn.setAttribute('aria-label', dot ? `${btn.dataset.baseLabel} – new messages` : btn.dataset.baseLabel);
-    }
+    const label = unread === 1 ? '1 new message' : `${unread > 99 ? '99+' : unread} new messages`;
+    document.querySelectorAll('[data-messages-header]').forEach((el) => {
+      el.setAttribute('aria-label', guardian && unread > 0 ? `Messages, ${label}` : 'Messages');
+    });
+    document.querySelectorAll('[data-messages-strip]').forEach((el) => {
+      el.style.display = guardian && unread > 0 ? 'flex' : 'none';
+      const text = el.querySelector('[data-messages-strip-text]');
+      if (text) text.textContent = `You have ${label}`;
+    });
   };
   try {
     const saved = JSON.parse(localStorage.getItem(key) || 'null');
@@ -545,7 +550,7 @@ export async function updateMessagesNav(SUPABASE_URL, accessToken, userId, { for
   }
 }
 
-/** After the Messages page has marked everything read: clear the dot now. */
+/** After the Messages page has marked everything read: clear the count and strip now. */
 export function markMessagesNavRead(userId) {
   invalidateCacheKey(userId, 'get-my-messages:summary');
   try { localStorage.setItem(`gfc_messages_nav_${userId}`, JSON.stringify({ guardian: true, unread: 0 })); } catch { /* storage unavailable */ }

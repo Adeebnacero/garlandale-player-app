@@ -460,20 +460,20 @@ header.hero-header::before {
 .hero-topbar {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
 }
 .hero-icons {
-  position: absolute;
-  top: 12px;
-  right: 14px;
   display: flex;
   align-items: center;
   gap: 4px;
+  margin-right: -6px;
 }
 .hero-brand {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
   font-family: var(--font-display);
   color: var(--paper);
@@ -1314,18 +1314,45 @@ body.cal-sheet-open { overflow: hidden; }
 .push-msg.ok { color: var(--green); }
 
 /* ---- Messages (side panel) ---- */
-.menu-btn { position: relative; }
-.menu-btn.has-unread::after {
-  content: "";
+/* Envelope in the top bar (every page), with the unread count */
+.header-end { display: flex; align-items: center; gap: 2px; min-width: 22px; justify-content: flex-end; }
+.msg-header-btn { position: relative; width: 40px; height: 40px; align-items: center; justify-content: center; color: var(--gold); text-decoration: none; border-radius: 12px; }
+.msg-header-btn svg { width: 24px; height: 24px; }
+.msg-header-btn:focus-visible { outline: 3px solid var(--gold); outline-offset: 0; }
+.msg-header-count {
   position: absolute;
   top: 2px;
-  right: 1px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
+  right: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 999px;
   background: var(--gold);
+  color: var(--indigo);
+  font: 700 11px var(--font-sans);
+  align-items: center;
+  justify-content: center;
   box-shadow: 0 0 0 2px var(--indigo);
 }
+/* "You have N new messages" strip on Home, above the tiles */
+.msg-strip {
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 14px;
+  margin: 12px 0 0;
+  border-radius: 14px;
+  border: 1px solid #E9D9A6;
+  background: #FBF3DC;
+  color: var(--indigo);
+  font: 700 14px var(--font-sans);
+  text-decoration: none;
+}
+.msg-strip:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.msg-strip-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--gold); flex: 0 0 auto; }
+.msg-strip-text { flex: 1; }
+.msg-strip svg { width: 18px; height: 18px; flex: 0 0 auto; }
 .msg-list { display: flex; flex-direction: column; gap: 12px; }
 .msg-card {
   background: #fff;

@@ -1,6 +1,26 @@
 Garlandale FC Player Portal — COMPLETE build (notice targeting by age group)
 ================================================================================
 
+MESSAGES: EASIER TO SPOT (November 2026)
+--------------------------------------------------------------------------------
+The small gold dot on the menu button is gone. Guardians now see:
+  - An envelope in the top bar of every page, with the unread count on it
+    in gold. It's always there (no number when everything's read), so
+    Messages is one tap away without opening the side panel.
+  - On Home, a "You have 2 new messages" strip above the tiles while
+    anything is unread. Tapping it opens Messages.
+Supporters and accounts with no linked child don't see either.
+
+Home's top bar now has the crest and "Garlandale FC" on the left, with
+Messages, Refresh and the menu on the right.
+
+Nothing on the server changes. Deploy this app as usual (full rebuild).
+Offline cache is now v19.
+
+Files: page-shared.js (updateMessagesNav), styles.css, service-worker.js
+(v19), and the top bar in home, calendar, fixtures, loyalty, notices,
+profile and shop.html (home.html also gets the strip).
+
 SHOP: WHO EACH ITEM IS FOR (November 2026)
 --------------------------------------------------------------------------------
 Guardians with more than one child now choose who each shop item is for:
