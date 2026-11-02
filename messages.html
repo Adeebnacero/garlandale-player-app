@@ -56,7 +56,9 @@
     <div id="msg-empty" class="msg-empty" style="display:none;">
       No messages yet. Personal messages from the club, like payment reminders, will appear here.
     </div>
-    <div id="msg-list" class="msg-list" aria-live="polite"></div>
+    <div id="msg-filter" class="msg-filter" role="group" aria-label="Show messages about" style="display:none;"></div>
+    <div id="msg-list" aria-live="polite"></div>
+    <p id="msg-kept" class="msg-kept" style="display:none;">Messages are kept for 90 days.</p>
   </main>
 </div>
 <script type="module">
@@ -64,7 +66,13 @@
   // children (Club Management -> Player Messages -> "Send in app"). Opened
   // from the side panel, or straight from a phone notification. Always
   // loads fresh. Messages shown here are marked read, which clears the
-  // side-panel count and menu dot, and shows as "Read" to the club.
+  // header and side-panel counts, and shows as "Read" to the club.
+  //
+  // Layout: the last 7 days in full; older messages grouped by month in
+  // folded sections of one-line previews that open in place. A group with
+  // an unread message starts open, with that message opened, so nothing
+  // new is ever hidden. Guardians with messages about more than one child
+  // get All / child buttons at the top. Grouping: messages-view.js.
   import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
   import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
   import {
@@ -72,6 +80,7 @@
     setupNavigationFeedback, setupStickyHeader, escapeHtml, markMessagesNavRead,
   } from './page-shared.js';
   import { supporterGate } from './supporter.js';
+  import { childrenIn, filterByChild, groupMessages } from './messages-view.js';
 
   const loading = document.getElementById('loading');
   const app = document.getElementById('app');
@@ -114,6 +123,109 @@
     });
   }
 
+  // ---- Rendering ----
+  const CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+  const view = { messages: [], showChild: false, child: '', openGroups: new Set(), openRows: new Set(), started: false };
+
+  function metaHtml(m) {
+    return `${view.showChild && m.playerName ? `<span class="msg-child">${escapeHtml(m.playerName)}</span><span aria-hidden="true">·</span>` : ''}
+      <time datetime="${escapeHtml(m.sentAt)}">${escapeHtml(when(m.sentAt))}</time>
+      ${m.read ? '' : '<span class="msg-new">New</span>'}`;
+  }
+  function cardHtml(m) {
+    return `<article class="msg-card${m.read ? '' : ' unread'}">
+      <div class="msg-meta">${metaHtml(m)}</div>
+      <p class="msg-body">${escapeHtml(m.body)}</p>
+    </article>`;
+  }
+  function rowHtml(m) {
+    const open = view.openRows.has(m.id);
+    return `<div class="msg-row${open ? ' open' : ''}">
+      <button type="button" class="msg-row-btn" data-row="${escapeHtml(m.id)}" aria-expanded="${open}">
+        <span class="msg-row-text">
+          <span class="msg-meta">${metaHtml(m)}</span>
+          <span class="msg-row-preview">${escapeHtml(m.body)}</span>
+        </span>
+        ${CHEVRON}
+      </button>
+      <p class="msg-body msg-row-body">${escapeHtml(m.body)}</p>
+    </div>`;
+  }
+
+  function renderMessages(messages, multipleChildren) {
+    view.messages = messages;
+    view.showChild = multipleChildren;
+    // Older unread messages start opened, in an opened group.
+    if (!view.started) {
+      view.started = true;
+      for (const g of groupMessages(messages).slice(1)) {
+        if (!g.unread) continue;
+        view.openGroups.add(g.id);
+        g.messages.filter((m) => !m.read).forEach((m) => view.openRows.add(m.id));
+      }
+    }
+    draw();
+  }
+
+  function draw() {
+    const filterEl = document.getElementById('msg-filter');
+    const listEl = document.getElementById('msg-list');
+    const kids = childrenIn(view.messages);
+    if (kids.length > 1) {
+      if (view.child && !kids.includes(view.child)) view.child = '';
+      filterEl.innerHTML = ['', ...kids].map((k) =>
+        `<button type="button" class="msg-chip${view.child === k ? ' on' : ''}" data-child="${escapeHtml(k)}" aria-pressed="${view.child === k}">${k ? escapeHtml(k) : 'All'}</button>`).join('');
+      filterEl.style.display = 'flex';
+    } else {
+      filterEl.style.display = 'none';
+    }
+    const groups = groupMessages(filterByChild(view.messages, view.child));
+    listEl.innerHTML = groups.map((g, i) => {
+      if (i === 0) {
+        return `<section class="msg-group">
+          <h2 class="msg-group-label">${escapeHtml(g.title)}</h2>
+          <div class="msg-list">${g.messages.map(cardHtml).join('')}</div>
+        </section>`;
+      }
+      const open = view.openGroups.has(g.id);
+      const count = g.messages.length === 1 ? '1 message' : `${g.messages.length} messages`;
+      return `<section class="msg-group">
+        <button type="button" class="msg-fold${open ? ' open' : ''}" data-group="${escapeHtml(g.id)}" aria-expanded="${open}">
+          <span class="msg-fold-title">${escapeHtml(g.title)}</span>
+          <span class="msg-fold-count">${count}${g.unread ? ` · ${g.unread} new` : ''}</span>
+          ${CHEVRON}
+        </button>
+        ${open ? `<div class="msg-rows">${g.messages.map(rowHtml).join('')}</div>` : ''}
+      </section>`;
+    }).join('') || '<p class="msg-empty">No messages about this child in the last 90 days.</p>';
+    document.getElementById('msg-kept').style.display = 'block';
+  }
+
+  document.getElementById('msg-filter').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-child]');
+    if (!b) return;
+    view.child = b.dataset.child;
+    draw();
+  });
+  document.getElementById('msg-list').addEventListener('click', (e) => {
+    const g = e.target.closest('[data-group]');
+    if (g) {
+      const id = g.dataset.group;
+      if (view.openGroups.has(id)) view.openGroups.delete(id); else view.openGroups.add(id);
+      draw();
+      document.querySelector(`[data-group="${CSS.escape(id)}"]`)?.focus();
+      return;
+    }
+    const r = e.target.closest('[data-row]');
+    if (r) {
+      const id = r.dataset.row;
+      const open = !view.openRows.has(id);
+      if (open) view.openRows.add(id); else view.openRows.delete(id);
+      r.parentElement.classList.toggle('open', open);
+      r.setAttribute('aria-expanded', String(open));
+    }
+  });
+
   async function loadMessages(accessToken, uid) {
     const msgLoading = document.getElementById('msg-loading');
     const msgError = document.getElementById('msg-error');
@@ -144,16 +256,7 @@
       return;
     }
 
-    msgList.innerHTML = messages.map((m) => `
-      <article class="msg-card${m.read ? '' : ' unread'}">
-        <div class="msg-meta">
-          ${body.multipleChildren && m.playerName ? `<span class="msg-child">${escapeHtml(m.playerName)}</span><span aria-hidden="true">·</span>` : ''}
-          <time datetime="${escapeHtml(m.sentAt)}">${escapeHtml(when(m.sentAt))}</time>
-          ${m.read ? '' : '<span class="msg-new">New</span>'}
-        </div>
-        <p class="msg-body">${escapeHtml(m.body)}</p>
-      </article>`).join('');
-
+    renderMessages(messages, !!body.multipleChildren);
     // Mark what's now on screen as read. "New" stays visible until the
     // next visit, so it's clear which ones just arrived.
     const unreadIds = messages.filter((m) => !m.read).map((m) => m.id);

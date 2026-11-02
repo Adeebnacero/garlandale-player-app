@@ -1,6 +1,28 @@
 Garlandale FC Player Portal — COMPLETE build (notice targeting by age group)
 ================================================================================
 
+MESSAGES PAGE: GROUPED BY DATE, WITH A FILTER BY CHILD (November 2026)
+--------------------------------------------------------------------------------
+So older messages don't bury new ones:
+  - The last 7 days show in full at the top.
+  - Older messages are grouped by month ("Earlier in November",
+    "October", ... "December 2025" once the year changes). Each month is
+    a folded bar with a count; tapping it shows one-line previews, and
+    tapping a preview opens the full message in place.
+  - A month with an unread message starts open, with that message
+    opened, so nothing new is ever folded away.
+  - Guardians with messages about more than one child get All / child
+    buttons at the top. Others don't see them.
+  - "Messages are kept for 90 days." at the bottom.
+Reading works as before: everything on the page is marked read when it
+opens.
+
+Nothing on the server changes. Deploy this app as usual (full rebuild).
+Offline cache is now v21.
+
+Files: messages.html, messages-view.js (new, + messages-view.test.js:
+  node --test messages-view.test.js), styles.css, service-worker.js (v21).
+
 MESSAGES: EASIER TO SPOT (November 2026)
 --------------------------------------------------------------------------------
 The small gold dot on the menu button is gone. Guardians now see:

@@ -1385,6 +1385,30 @@ body.cal-sheet-open { overflow: hidden; }
 }
 .msg-body { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
 .msg-empty { color: var(--inkSoft); font-size: 14px; text-align: center; padding: 24px 8px; line-height: 1.5; }
+/* Messages page: filter by child, date groups, folded previews */
+.msg-filter { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; }
+.msg-chip { min-height: 40px; padding: 0 16px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--card); color: var(--ink); font: 700 13.5px var(--font-sans); cursor: pointer; }
+.msg-chip.on { background: var(--indigo); border-color: var(--indigo); color: var(--paper); }
+.msg-chip:focus-visible, .msg-fold:focus-visible, .msg-row-btn:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.msg-group { margin: 0 0 18px; }
+.msg-group-label { font-size: 11px; font-weight: 700; color: var(--inkSoft); text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 10px; }
+.msg-fold { width: 100%; min-height: 48px; display: flex; align-items: center; gap: 10px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: 700 14px var(--font-sans); cursor: pointer; text-align: left; }
+.msg-fold-title { flex: 1; }
+.msg-fold-count { font-size: 12.5px; font-weight: 600; color: var(--inkSoft); }
+.msg-fold svg, .msg-row-btn svg { width: 18px; height: 18px; flex: 0 0 auto; color: var(--inkSoft); transition: transform var(--duration-base) var(--ease-standard); }
+.msg-fold.open svg, .msg-row.open .msg-row-btn svg { transform: rotate(180deg); }
+.msg-rows { margin-top: 8px; background: #fff; border-radius: 14px; box-shadow: 0 1px 3px rgba(28, 23, 48, 0.08); overflow: hidden; }
+.msg-row + .msg-row { border-top: 1px solid var(--line); }
+.msg-row-btn { width: 100%; min-height: 56px; display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: none; border: 0; text-align: left; cursor: pointer; font-family: var(--font-sans); color: var(--ink); }
+.msg-row-text { flex: 1; min-width: 0; }
+.msg-row-btn .msg-meta { margin-bottom: 2px; }
+.msg-row-btn .msg-new { margin-left: 0; }
+.msg-row-preview { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.msg-row.open .msg-row-preview { display: none; }
+.msg-row-body { padding: 0 14px 14px; margin-top: -4px; }
+.msg-row:not(.open) .msg-row-body { display: none; }
+.msg-kept { font-size: 12px; color: var(--inkSoft); text-align: center; margin: 6px 0 0; }
+@media (prefers-reduced-motion: reduce) { .msg-fold svg, .msg-row-btn svg { transition: none; } }
 
 /* Shop: which child an item is for (guardians with more than one child) */
 .kid-row .size-chip small { font-weight: 600; opacity: .75; margin-left: 2px; }
